@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Clip to Notion",
+  "description": "Capture an X (Twitter) post and send it into a Notion database.",
+  "version": "0.1.0",
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Clip to Notion"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "notifications",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://api.notion.com/*",
+    "https://x.com/*",
+    "https://twitter.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*/status/*",
+        "https://twitter.com/*/status/*"
+      ],
+      "js": [
+        "content-script.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

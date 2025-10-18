@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>Clip to Notion 設定</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        margin: 24px;
+        color: #1f2933;
+        background: #f8fafc;
+      }
+
+      main {
+        max-width: 480px;
+        padding: 24px;
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+      }
+
+      h1 {
+        font-size: 1.4rem;
+        margin-bottom: 16px;
+      }
+
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      input,
+      textarea,
+      button {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.95rem;
+        background-color: #f9fafb;
+      }
+
+      input:focus,
+      textarea:focus {
+        outline: none;
+        border-color: #2563eb;
+        background-color: #ffffff;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+      }
+
+      fieldset {
+        border: none;
+        padding: 0;
+        margin: 0 0 24px 0;
+      }
+
+      .field {
+        margin-bottom: 18px;
+      }
+
+      .helper {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-top: 4px;
+      }
+
+      button[type="submit"] {
+        background-color: #2563eb;
+        color: white;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      button[type="submit"]:hover {
+        background-color: #1d4ed8;
+      }
+
+      #status {
+        min-height: 1.2em;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Notion 連携設定</h1>
+      <form id="options-form">
+        <fieldset>
+          <div class="field">
+            <label for="apiKey">Notion API キー</label>
+            <input
+              id="apiKey"
+              name="apiKey"
+              type="password"
+              autocomplete="off"
+              required
+            />
+            <p class="helper">
+              内部に安全に保存されます。<code>secret_</code> で始まるキーを入力してください。
+            </p>
+          </div>
+          <div class="field">
+            <label for="databaseUrl">Notion データベース URL</label>
+            <input
+              id="databaseUrl"
+              name="databaseUrl"
+              type="url"
+              placeholder="https://www.notion.so/..."
+              required
+            />
+            <p class="helper">
+              共有リンクを貼り付けると自動でデータベース ID を抽出します。
+            </p>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>プロパティ名</legend>
+          <div class="field">
+            <label for="titleProperty">タイトル (Notion の Title プロパティ)</label>
+            <input id="titleProperty" name="titleProperty" value="Name" required />
+          </div>
+          <div class="field">
+            <label for="screenNameProperty">表示名 (Screen Name)</label>
+            <input
+              id="screenNameProperty"
+              name="screenNameProperty"
+              value="Screen Name"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="userNameProperty">ユーザー名 (＠付き)</label>
+            <input
+              id="userNameProperty"
+              name="userNameProperty"
+              value="Username"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="urlProperty">URL プロパティ</label>
+            <input
+              id="urlProperty"
+              name="urlProperty"
+              value="Tweet URL"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="timestampProperty">投稿日時 (date プロパティ)</label>
+            <input
+              id="timestampProperty"
+              name="timestampProperty"
+              value="Posted At"
+              required
+            />
+          </div>
+        </fieldset>
+
+        <button type="submit">保存する</button>
+        <p id="status"></p>
+      </form>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
