@@ -3,9 +3,15 @@
   "name": "Clip to Notion",
   "description": "Capture an X (Twitter) post and send it into a Notion database.",
   "version": "0.1.0",
+  "icons": {
+    "128": "icons/icon-128.png"
+  },
   "options_page": "options.html",
   "action": {
-    "default_title": "Clip to Notion"
+    "default_title": "Clip to Notion",
+    "default_icon": {
+      "128": "icons/icon-128.png"
+    }
   },
   "background": {
     "service_worker": "background.js",

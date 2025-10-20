@@ -3,8 +3,7 @@ import { getSettings, parseDatabaseIdFromUrl, saveSettings } from './settings.js
 import type { XPostPayload } from './types.js';
 
 const CONTEXT_MENU_ID = 'clip-notion-x-post';
-const NOTIFICATION_ICON =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
+const NOTIFICATION_ICON_PATH = 'icons/icon-128.png';
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
@@ -33,18 +32,21 @@ chrome.action.onClicked.addListener(async (tab) => {
 async function handleClip(tab?: chrome.tabs.Tab) {
   try {
     if (!tab || typeof tab.id !== 'number' || !tab.url) {
-      await showNotification('アクティブなタブが見つかりません。');
+      await showNotification('アクティブなタブが見つかりません。', true);
       return;
     }
 
     if (!isSupportedUrl(tab.url)) {
-      await showNotification('X (Twitter) の詳細投稿ページで実行してください。');
+      await showNotification('X (Twitter) の詳細投稿ページで実行してください。', true);
       return;
     }
 
     const settings = await ensureSettingsReady();
     if (!settings.notionApiKey || !settings.notionDatabaseId) {
-      await showNotification('Notion 設定が不足しています。オプションページで設定してください。');
+      await showNotification(
+        'Notion 設定が不足しています。オプションページで設定してください。',
+        true
+      );
       return;
     }
 
@@ -60,7 +62,7 @@ async function handleClip(tab?: chrome.tabs.Tab) {
         console.warn('Notion API error', error);
       }
     }
-    await showNotification(message);
+    await showNotification(message, true);
   }
 }
 
@@ -118,17 +120,33 @@ async function requestExtraction(tabId: number): Promise<XPostPayload> {
   });
 }
 
-async function showNotification(message: string) {
+async function showNotification(message: string, isError = false) {
   return new Promise<void>((resolve) => {
+    const iconUrl = chrome.runtime.getURL(NOTIFICATION_ICON_PATH);
     chrome.notifications.create(
       '',
       {
         type: 'basic',
-        iconUrl: NOTIFICATION_ICON,
+        iconUrl,
         title: 'Clip to Notion',
         message
       },
-      () => resolve()
+      () => {
+        if (chrome.runtime.lastError) {
+          console.warn('notification error', chrome.runtime.lastError.message);
+        }
+
+        const badgeColor = isError ? '#ef4444' : '#10b981';
+        const badgeText = isError ? '!' : 'OK';
+
+        chrome.action.setBadgeBackgroundColor({ color: badgeColor }, () => {
+          chrome.action.setBadgeText({ text: badgeText }, () => {
+            setTimeout(() => {
+              chrome.action.setBadgeText({ text: '' }, () => resolve());
+            }, 2500);
+          });
+        });
+      }
     );
   });
 }
