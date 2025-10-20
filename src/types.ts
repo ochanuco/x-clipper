@@ -19,5 +19,6 @@ export interface XPostPayload {
   text: string;
   timestamp: string;
   images: string[];
+  avatarUrl: string | null;
   url: string;
 }

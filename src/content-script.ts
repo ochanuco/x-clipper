@@ -4,7 +4,42 @@ interface ExtractedPost {
   text: string;
   timestamp: string;
   images: string[];
+  avatarUrl: string | null;
   url: string;
+}
+
+const MAX_IMAGES = 4;
+
+function bestImageUrl(img: HTMLImageElement) {
+  const srcset = img.getAttribute('srcset');
+  if (srcset) {
+    const sources = srcset
+      .split(',')
+      .map((item) => item.trim().split(' '))
+      .map(([url, size]) => ({
+        url,
+        size: size ? parseInt(size.replace(/\D/g, ''), 10) : 0
+      }))
+      .filter((entry) => Boolean(entry.url));
+    sources.sort((a, b) => b.size - a.size);
+    if (sources[0]?.url) {
+      return sources[0].url;
+    }
+  }
+  return img.currentSrc || img.src;
+}
+
+function normalizeImageUrl(url: string) {
+  if (!url) {
+    return '';
+  }
+  if (url.startsWith('//')) {
+    return `https:${url}`;
+  }
+  if (url.startsWith('/')) {
+    return `https://x.com${url}`;
+  }
+  return url;
 }
 
 function collectFromArticle(article: Element): ExtractedPost | null {
@@ -62,12 +97,37 @@ function collectFromArticle(article: Element): ExtractedPost | null {
   const timeElement = article.querySelector('time');
   const timestamp = timeElement?.getAttribute('datetime') ?? '';
 
-  const imageElements = Array.from(
+  const avatarElement =
+    (article.querySelector('[data-testid="Tweet-User-Avatar"] img') as HTMLImageElement | null) ??
+    (document.querySelector('[data-testid="Tweet-User-Avatar"] img') as HTMLImageElement | null);
+  const avatarUrl = avatarElement ? normalizeImageUrl(bestImageUrl(avatarElement)) : null;
+
+  const primaryMedia = Array.from(
     article.querySelectorAll<HTMLImageElement>('div[data-testid="tweetPhoto"] img')
   );
-  const images = imageElements
-    .map((img) => img.currentSrc || img.src)
+
+  const fallbackMedia = Array.from(
+    article.querySelectorAll<HTMLImageElement>('img')
+  ).filter((img) => {
+    const testId = img.closest('[data-testid]')?.getAttribute('data-testid')?.toLowerCase() ?? '';
+    if (testId.includes('tweetphoto') || testId.includes('mediaimage') || testId.includes('previewimage')) {
+      return true;
+    }
+    return false;
+  });
+
+  const imageSet = new Set<HTMLImageElement>([...primaryMedia, ...fallbackMedia]);
+  if (avatarElement) {
+    imageSet.delete(avatarElement);
+  }
+
+  const images = Array.from(imageSet)
+    .map((img) => normalizeImageUrl(bestImageUrl(img)))
     .filter((src): src is string => typeof src === 'string' && src.length > 0);
+
+  if (images.length > MAX_IMAGES) {
+    images.length = MAX_IMAGES;
+  }
 
   if (!screenName || !userName) {
     const titleContent =
@@ -129,6 +189,7 @@ function collectFromArticle(article: Element): ExtractedPost | null {
     text,
     timestamp,
     images,
+    avatarUrl,
     url: window.location.href
   };
 }

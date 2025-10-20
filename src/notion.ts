@@ -123,6 +123,20 @@ export async function createNotionPage(
 
   const properties = buildProperties(settings, post);
   const children = buildChildren(post);
+  const icon =
+    post.avatarUrl && post.avatarUrl.length > 0
+      ? {
+          type: 'external',
+          external: { url: post.avatarUrl }
+        }
+      : undefined;
+  const cover =
+    post.images.length > 0
+      ? {
+          type: 'external',
+          external: { url: post.images[0] }
+        }
+      : undefined;
 
   const response = await fetch(NOTION_API_URL, {
     method: 'POST',
@@ -135,6 +149,8 @@ export async function createNotionPage(
       parent: {
         database_id: settings.notionDatabaseId
       },
+      icon,
+      cover,
       properties,
       children
     })
