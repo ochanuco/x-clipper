@@ -1,6 +1,6 @@
 # Clip to Notion
 
-Chrome 拡張機能「Clip to Notion」は、X（Twitter）の投稿詳細ページから表示名・ユーザー名・本文・投稿時刻・画像を抽出し、バックエンド経由で Notion に保存します。バックエンドは Notion の署名付き URL を利用して画像をアップロードし、投稿が削除されても Notion 内のコピーが残る構成です。
+Chrome 拡張機能「Clip to Notion」は、X（Twitter）の投稿詳細ページから表示名・ユーザー名・本文・投稿時刻・画像を抽出し、バックエンド経由で Notion に保存します。バックエンドは取得した画像を自身のストレージ（`server/uploads`）へ保存し、その公開 URL を Notion に渡すことで、元の投稿が消えても Notion 上で閲覧できるようにしています。Notion が画像へアクセスできるよう、バックエンドはインターネットから到達可能なホストへ配置する前提です。
 
 ## 前提条件
 - Node.js 20 以上
@@ -20,13 +20,14 @@ pnpm install
    NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    CLIP_NOTION_TOKEN=local-dev-token   # 任意、空でも可
    PORT=8787
+   ASSET_BASE_URL=https://your-domain.example.com   # 画像を配信する公開 URL
    ```
 2. バックエンドを起動
-   ```bash
+```bash
    pnpm run server
-   ```
+```
 
-バックエンドは `POST /clip` を受け取り、X から渡された画像をダウンロード → Notion の署名付き URL へアップロード → ページを作成します。`CLIP_NOTION_TOKEN` を設定すると Bearer 認証が有効化されます。
+バックエンドは `POST /clip` を受け取り、X から渡された画像をダウンロード → `server/uploads` に保存 → 公開 URL を Notion に渡してページを作成します。`CLIP_NOTION_TOKEN` を設定すると Bearer 認証が有効化されます。`ASSET_BASE_URL` には Notion からアクセス可能なベース URL（例: `https://clip.example.com`）を指定してください。ローカル開発時はデフォルトで `http://localhost:8787` を利用します。
 
 ## 拡張機能のビルド
 ```bash
@@ -47,7 +48,7 @@ pnpm run build
 ## 使い方
 - X の投稿詳細ページを開いた状態で、ツールバーの拡張機能ボタンまたは右クリックメニュー「この投稿を Notion に保存」を選択。
 - 拡張機能が投稿データを抽出してバックエンドへ送信し、バックエンドが Notion にページを作成します。
-- 投稿本文は段落ブロックとして、画像は Notion に実ファイルとしてアップロードされ、1 枚目がカバー、プロフィール画像がページアイコンになります。
+- 投稿本文は段落ブロックとして、画像はバックエンドが配信する URL を参照する `external` ブロックとして追加されます。1 枚目がカバー、プロフィール画像がページアイコンになります。
 
 ## 開発メモ
 - TypeScript を使用し、ビルドは `pnpm exec tsc` で行います。ウォッチやホットリロードが必要な場合は Vite などの導入を検討してください。

@@ -1,6 +1,14 @@
 import 'dotenv/config';
+import crypto from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { extension as extensionFromMime, lookup as lookupMime } from 'mime-types';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.join(__dirname, 'uploads');
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -10,6 +18,9 @@ const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
 const NOTION_VERSION = process.env.NOTION_VERSION ?? '2022-06-28';
 const AUTH_TOKEN = process.env.CLIP_NOTION_TOKEN;
+const PORT = Number.parseInt(process.env.PORT ?? '8787', 10);
+const ASSET_BASE_URL =
+  process.env.ASSET_BASE_URL ?? `http://localhost:${PORT}`;
 
 const DEFAULT_PROPERTY_MAP = {
   title: 'Name',
@@ -27,6 +38,15 @@ if (!NOTION_DATABASE_ID) {
   throw new Error('NOTION_DATABASE_ID is required');
 }
 
+await mkdir(uploadsDir, { recursive: true });
+app.use(
+  '/uploads',
+  express.static(uploadsDir, {
+    maxAge: '365d',
+    immutable: true
+  })
+);
+
 if (AUTH_TOKEN) {
   app.use((req, res, next) => {
     const authHeader = req.header('authorization');
@@ -42,30 +62,30 @@ app.post('/clip', async (req, res) => {
   try {
     const payload = normalizePayload(req.body);
 
-    const avatarFile = payload.avatarUrl
-      ? await uploadRemoteAsset({
+    const avatarAsset = payload.avatarUrl
+      ? await persistRemoteAsset({
           url: payload.avatarUrl,
           label: 'avatar'
         })
       : null;
 
-    const mediaFiles = [];
+    const mediaAssets = [];
     for (const [index, imageUrl] of payload.images.entries()) {
       try {
-        const uploaded = await uploadRemoteAsset({
+        const asset = await persistRemoteAsset({
           url: imageUrl,
           label: `media-${index + 1}`
         });
-        mediaFiles.push(uploaded);
+        mediaAssets.push(asset);
       } catch (error) {
-        console.warn('Failed to upload media', imageUrl, error);
+        console.warn('Failed to persist media', imageUrl, error);
       }
     }
 
     const page = await createNotionPage({
       payload,
-      avatarFile,
-      mediaFiles
+      avatarAsset,
+      mediaAssets
     });
 
     res.json({
@@ -82,9 +102,14 @@ app.post('/clip', async (req, res) => {
   }
 });
 
-const port = Number.parseInt(process.env.PORT ?? '8787', 10);
-app.listen(port, () => {
-  console.log(`Clip to Notion backend listening on http://localhost:${port}`);
+app.get('/healthz', (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.listen(PORT, () => {
+  console.log(
+    `Clip to Notion backend listening on http://localhost:${PORT} (asset base ${ASSET_BASE_URL})`
+  );
 });
 
 function normalizePayload(body = {}) {
@@ -132,7 +157,7 @@ function coerceUrl(candidate) {
   }
 }
 
-async function uploadRemoteAsset({ url, label }) {
+async function persistRemoteAsset({ url, label }) {
   const response = await fetch(url);
   if (!response.ok) {
     throw Object.assign(
@@ -148,95 +173,62 @@ async function uploadRemoteAsset({ url, label }) {
     response.headers.get('content-type') ??
     lookupMime(url) ??
     'application/octet-stream';
-  const ext = extensionFromMime(contentType) ?? 'bin';
-  const safeLabel = label.replace(/[^a-zA-Z0-9_-]/g, '-');
-  const name = `${safeLabel}-${Date.now()}.${ext}`;
 
-  const fileMeta = await createNotionFile({
-    name,
-    contentType
-  });
+  const extension = resolveExtension(url, contentType);
+  const fileName = buildFileName(label, extension);
+  const filePath = path.join(uploadsDir, fileName);
 
-  await uploadToSignedUrl({
-    signedUrl: fileMeta.signed_url,
-    buffer,
-    contentType
-  });
+  await writeFile(filePath, buffer);
+
+  const assetUrl = new URL(`/uploads/${fileName}`, ASSET_BASE_URL).toString();
 
   return {
-    fileId: fileMeta.id,
-    name,
+    fileName,
+    filePath,
+    assetUrl,
     contentType
   };
 }
 
-async function createNotionFile({ name, contentType }) {
-  const response = await notionFetch('/files', {
-    method: 'POST',
-    body: JSON.stringify({
-      file: {
-        name,
-        content_type: contentType
-      }
-    })
-  });
-
-  const json = await response.json();
-  if (!response.ok) {
-    throw Object.assign(
-      new Error(
-        `Notion file init failed (${response.status}): ${JSON.stringify(json)}`
-      ),
-      { statusCode: response.status }
-    );
+function resolveExtension(url, contentType) {
+  const urlObj = new URL(url);
+  const extFromUrl = path.extname(urlObj.pathname).replace('.', '');
+  if (extFromUrl) {
+    return extFromUrl;
   }
 
-  return json.file;
-}
-
-async function uploadToSignedUrl({ signedUrl, buffer, contentType }) {
-  const response = await fetch(signedUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': contentType,
-      'Content-Length': buffer.length.toString()
-    },
-    body: buffer
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw Object.assign(
-      new Error(
-        `Failed to upload to signed URL (${response.status}): ${text.slice(
-          0,
-          200
-        )}`
-      ),
-      { statusCode: 502 }
-    );
+  const extFromMime = extensionFromMime(contentType);
+  if (extFromMime) {
+    return extFromMime;
   }
+  return 'bin';
 }
 
-async function createNotionPage({ payload, avatarFile, mediaFiles }) {
+function buildFileName(label, extension) {
+  const safeLabel = label.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const hash = crypto.randomBytes(8).toString('hex');
+  return `${safeLabel}-${hash}.${extension}`;
+}
+
+async function createNotionPage({ payload, avatarAsset, mediaAssets }) {
   const properties = buildProperties(payload);
-  const children = buildChildren(payload, mediaFiles);
+  const children = buildChildren(payload, mediaAssets);
 
-  const icon = avatarFile
+  const icon = avatarAsset
     ? {
-        type: 'file',
-        file: {
-          file_id: avatarFile.fileId
+        type: 'external',
+        external: {
+          url: avatarAsset.assetUrl
         }
       }
     : undefined;
 
   const cover =
-    mediaFiles.length > 0
+    mediaAssets.length > 0
       ? {
-          type: 'file',
-          file: {
-            file_id: mediaFiles[0].fileId
+          type: 'external',
+          external: {
+            url: mediaAssets[0].assetUrl
           }
         }
       : undefined;
@@ -329,7 +321,7 @@ function buildProperties(payload) {
   return properties;
 }
 
-function buildChildren(payload, mediaFiles) {
+function buildChildren(payload, mediaAssets) {
   const children = [];
 
   if (payload.text) {
@@ -349,14 +341,14 @@ function buildChildren(payload, mediaFiles) {
     });
   }
 
-  for (const file of mediaFiles) {
+  for (const asset of mediaAssets) {
     children.push({
       object: 'block',
       type: 'image',
       image: {
-        type: 'file',
-        file: {
-          file_id: file.fileId
+        type: 'external',
+        external: {
+          url: asset.assetUrl
         }
       }
     });
