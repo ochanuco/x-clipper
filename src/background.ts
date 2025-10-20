@@ -90,27 +90,77 @@ async function ensureSettingsReady() {
 }
 
 async function requestExtraction(tabId: number): Promise<XPostPayload> {
+  try {
+    return await sendExtractionRequest(tabId);
+  } catch (error) {
+    if (error instanceof ExtractionError && error.reason === 'NO_RECEIVER') {
+      await ensureContentScript(tabId);
+      return await sendExtractionRequest(tabId);
+    }
+    throw error;
+  }
+}
+
+async function ensureContentScript(tabId: number) {
+  return chrome.scripting.executeScript({
+    target: { tabId },
+    files: ['content-script.js']
+  });
+}
+
+class ExtractionError extends Error {
+  constructor(
+    message: string,
+    public readonly reason: 'NO_RECEIVER' | 'UNKNOWN'
+  ) {
+    super(message);
+  }
+}
+
+async function sendExtractionRequest(tabId: number): Promise<XPostPayload> {
   return new Promise((resolve, reject) => {
     chrome.tabs.sendMessage(
       tabId,
       { type: 'EXTRACT_X_POST' },
       (response) => {
         if (chrome.runtime.lastError) {
+          const runtimeMessage = chrome.runtime.lastError.message ?? '';
+          if (runtimeMessage.includes('Receiving end does not exist')) {
+            reject(
+              new ExtractionError(
+                '投稿を取得できませんでした。ページを再読み込みしてもう一度お試しください。',
+                'NO_RECEIVER'
+              )
+            );
+            return;
+          }
+
           reject(
-            new Error(
-              'ページから情報を取得できませんでした。権限と対象ページを確認してください。'
+            new ExtractionError(
+              'ページから情報を取得できませんでした。権限と対象ページを確認してください。',
+              'UNKNOWN'
             )
           );
           return;
         }
 
         if (!response) {
-          reject(new Error('コンテンツスクリプトから応答がありませんでした。'));
+          reject(
+            new ExtractionError(
+              'コンテンツスクリプトから応答がありませんでした。',
+              'UNKNOWN'
+            )
+          );
           return;
         }
 
         if (!response.success) {
-          reject(new Error(response.error ?? '投稿の抽出に失敗しました。'));
+          reject(
+            new ExtractionError(
+              response.error ?? '投稿の抽出に失敗しました。',
+              'UNKNOWN'
+            )
+          );
           return;
         }
 
