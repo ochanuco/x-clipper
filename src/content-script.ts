@@ -68,6 +68,14 @@ function isLikelyAvatarUrl(url: string) {
   return lower.includes('profile_images') || lower.includes('default_profile');
 }
 
+function isTwitterPlaceholder(url: string) {
+  const lower = url.toLowerCase();
+  return (
+    lower.startsWith('https://abs.twimg.com') &&
+    (lower.includes('/og/') || lower.includes('/card/') || lower.endsWith('/image.png'))
+  );
+}
+
 function findOwningArticle(node: Element | null) {
   return node?.closest('article[data-testid="tweet"], article[data-testid="tweetDetail"]');
 }
@@ -88,6 +96,9 @@ function pushUrl(
     return;
   }
   if (isLikelyAvatarUrl(normalized)) {
+    return;
+  }
+  if (isTwitterPlaceholder(normalized)) {
     return;
   }
   urls.add(normalized);
