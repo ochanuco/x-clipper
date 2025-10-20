@@ -63,12 +63,25 @@ function collectFromArticle(article: Element): ExtractedPost | null {
     }
 
     if (!userName) {
+      const creatorMeta =
+        document
+          .querySelector('meta[name="twitter:creator"]')
+          ?.getAttribute('content') ?? '';
+      if (creatorMeta.startsWith('@')) {
+        userName = creatorMeta.trim();
+      }
+    }
+
+    if (!userName) {
       const canonicalUrl =
         document.querySelector('link[rel="canonical"]')?.getAttribute('href') ??
         window.location.href;
       try {
         const url = new URL(canonicalUrl);
-        const [handle] = url.pathname.split('/').filter(Boolean);
+        const handle = url.pathname
+          .split('/')
+          .filter(Boolean)
+          .find((segment) => !['i', 'web', 'status'].includes(segment.toLowerCase()));
         if (handle) {
           userName = handle.startsWith('@') ? handle : `@${handle}`;
         }
