@@ -165,6 +165,11 @@ async function sendExtractionRequest(tabId: number): Promise<XPostPayload> {
 
 async function sendToBackend(settings: AppSettings, post: XPostPayload) {
   const endpoint = settings.backendEndpoint.trim();
+  const endpointUrl = new URL(endpoint);
+  if (!endpointUrl.pathname || endpointUrl.pathname === '/') {
+    endpointUrl.pathname = '/clip';
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
@@ -173,7 +178,7 @@ async function sendToBackend(settings: AppSettings, post: XPostPayload) {
     headers.Authorization = `Bearer ${settings.backendAuthToken.trim()}`;
   }
 
-  const response = await fetch(endpoint, {
+  const response = await fetch(endpointUrl.toString(), {
     method: 'POST',
     headers,
     body: JSON.stringify({
