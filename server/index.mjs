@@ -15,7 +15,7 @@ app.use(express.json({ limit: '2mb' }));
 
 const NOTION_API_URL = 'https://api.notion.com/v1';
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
-const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
+const NOTION_DATABASE_ID = normalizeDatabaseId(process.env.NOTION_DATABASE_ID);
 const NOTION_VERSION = process.env.NOTION_VERSION ?? '2022-06-28';
 const AUTH_TOKEN = process.env.CLIP_NOTION_TOKEN;
 const PORT = Number.parseInt(process.env.PORT ?? '8787', 10);
@@ -138,6 +138,24 @@ function normalizePayload(body = {}) {
     url,
     propertyMap
   };
+}
+
+function normalizeDatabaseId(input) {
+  if (!input) {
+    throw new Error('NOTION_DATABASE_ID is required');
+  }
+  const trimmed = String(input).trim();
+  const match =
+    trimmed.match(
+      /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i
+    ) ?? trimmed.match(/[a-f0-9]{32}/i);
+
+  if (!match) {
+    throw new Error(
+      'NOTION_DATABASE_ID must be the database UUID (with or without hyphens) or a Notion database URL containing it.'
+    );
+  }
+  return match[0].replace(/-/g, '');
 }
 
 function coerceUrl(candidate) {
