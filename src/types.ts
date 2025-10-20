@@ -6,10 +6,9 @@ export interface NotionPropertyMap {
   postedAt: string;
 }
 
-export interface NotionSettings {
-  notionApiKey: string;
-  notionDatabaseUrl: string;
-  notionDatabaseId: string;
+export interface AppSettings {
+  backendEndpoint: string;
+  backendAuthToken: string;
   propertyMap: NotionPropertyMap;
 }
 
@@ -21,4 +20,5 @@ export interface XPostPayload {
   images: string[];
   avatarUrl: string | null;
   url: string;
+  propertyMap?: NotionPropertyMap;
 }

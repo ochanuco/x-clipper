@@ -1,7 +1,5 @@
-import { createNotionPage } from './notion.js';
-import type { NotionError } from './notion.js';
-import { getSettings, parseDatabaseIdFromUrl, saveSettings } from './settings.js';
-import type { XPostPayload } from './types.js';
+import { getSettings } from './settings.js';
+import type { AppSettings, XPostPayload } from './types.js';
 
 const CONTEXT_MENU_ID = 'clip-notion-x-post';
 const NOTIFICATION_ICON_PATH = 'icons/icon-128.png';
@@ -42,27 +40,19 @@ async function handleClip(tab?: chrome.tabs.Tab) {
       return;
     }
 
-    const settings = await ensureSettingsReady();
-    if (!settings.notionApiKey || !settings.notionDatabaseId) {
-      await showNotification(
-        'Notion 設定が不足しています。オプションページで設定してください。',
-        true
-      );
-      return;
-    }
+    const settings = await getSettings();
+    validateSettings(settings);
 
     const post = await requestExtraction(tab.id);
-    await createNotionPage(settings, post);
+    await sendToBackend(settings, post);
 
     await showNotification('Notion に投稿を保存しました。');
   } catch (error) {
     let message = '処理中にエラーが発生しました。';
-    if (isNotionError(error)) {
-      const formatted = formatNotionError(error);
-      message = formatted.userMessage;
-      console.warn('Notion API error', formatted.debug);
-    } else if (error instanceof Error) {
+    if (error instanceof Error) {
       message = error.message;
+    } else if (typeof error === 'string') {
+      message = error;
     }
     await showNotification(message, true);
   }
@@ -79,16 +69,17 @@ function isSupportedUrl(url: string) {
   }
 }
 
-async function ensureSettingsReady() {
-  const settings = await getSettings();
-  if (!settings.notionDatabaseId && settings.notionDatabaseUrl) {
-    const extracted = parseDatabaseIdFromUrl(settings.notionDatabaseUrl);
-    if (extracted) {
-      settings.notionDatabaseId = extracted;
-      await saveSettings(settings);
-    }
+function validateSettings(settings: AppSettings) {
+  const endpoint = settings.backendEndpoint?.trim();
+  if (!endpoint) {
+    throw new Error('バックエンドのエンドポイントが未設定です。オプションページで設定してください。');
   }
-  return settings;
+  try {
+    // eslint-disable-next-line no-new
+    new URL(endpoint);
+  } catch {
+    throw new Error('バックエンドのエンドポイント URL が不正です。');
+  }
 }
 
 async function requestExtraction(tabId: number): Promise<XPostPayload> {
@@ -172,52 +163,37 @@ async function sendExtractionRequest(tabId: number): Promise<XPostPayload> {
   });
 }
 
-function isNotionError(error: unknown): error is NotionError {
-  return Boolean(
-    error &&
-      typeof error === 'object' &&
-      ('responseStatus' in error || 'responseBody' in error)
-  );
-}
-
-function formatNotionError(error: NotionError) {
-  const status = error.responseStatus ?? '不明';
-  let code = '';
-  let message = '';
-
-  if (error.responseBody) {
-    try {
-      const parsed = JSON.parse(error.responseBody) as {
-        code?: string;
-        message?: string;
-      };
-      code = parsed.code ?? '';
-      message = parsed.message ?? '';
-    } catch {
-      message = error.responseBody.slice(0, 200);
-    }
-  }
-
-  const parts = [`HTTP ${status}`];
-  if (code) {
-    parts.push(code);
-  }
-  const summary = parts.join(' / ');
-
-  const userMessage =
-    message.trim().length > 0
-      ? `Notion への書き込みに失敗しました（${summary}）。${message}`
-      : `Notion への書き込みに失敗しました（${summary}）。`;
-
-  return {
-    userMessage,
-    debug: {
-      status: error.responseStatus,
-      code,
-      message,
-      raw: error.responseBody
-    }
+async function sendToBackend(settings: AppSettings, post: XPostPayload) {
+  const endpoint = settings.backendEndpoint.trim();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
   };
+
+  if (settings.backendAuthToken?.trim()) {
+    headers.Authorization = `Bearer ${settings.backendAuthToken.trim()}`;
+  }
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      ...post,
+      propertyMap: settings.propertyMap
+    })
+  });
+
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const payload = await response.json();
+      detail = payload?.error ?? '';
+    } catch {
+      detail = await response.text();
+    }
+
+    const summary = `バックエンドがエラーを返しました（HTTP ${response.status}）`;
+    throw new Error(detail ? `${summary}: ${detail}` : summary);
+  }
 }
 
 async function showNotification(message: string, isError = false) {

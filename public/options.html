@@ -88,33 +88,32 @@
   </head>
   <body>
     <main>
-      <h1>Notion 連携設定</h1>
+      <h1>バックエンド設定</h1>
       <form id="options-form">
         <fieldset>
           <div class="field">
-            <label for="apiKey">Notion API キー</label>
+            <label for="backendEndpoint">バックエンドのエンドポイント</label>
             <input
-              id="apiKey"
-              name="apiKey"
-              type="password"
-              autocomplete="off"
+              id="backendEndpoint"
+              name="backendEndpoint"
+              type="url"
+              placeholder="https://example.com/clip"
               required
             />
             <p class="helper">
-              内部に安全に保存されます。<code>secret_</code> または <code>ntn_</code> で始まるキーを入力してください。
+              リバースプロキシやバックエンド API の <code>/clip</code> エンドポイントを指定します。
             </p>
           </div>
           <div class="field">
-            <label for="databaseUrl">Notion データベース URL</label>
+            <label for="backendAuthToken">認証トークン (任意)</label>
             <input
-              id="databaseUrl"
-              name="databaseUrl"
-              type="url"
-              placeholder="https://www.notion.so/..."
-              required
+              id="backendAuthToken"
+              name="backendAuthToken"
+              type="password"
+              autocomplete="off"
             />
             <p class="helper">
-              共有リンクを貼り付けると自動でデータベース ID を抽出します。
+              バックエンドが Bearer 認証を要求する場合に指定します。未設定なら送信されません。
             </p>
           </div>
         </fieldset>

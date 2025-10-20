@@ -25,7 +25,6 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://api.notion.com/*",
     "https://x.com/*",
     "https://twitter.com/*"
   ],

@@ -1,5 +1,5 @@
-import { getSettings, parseDatabaseIdFromUrl, saveSettings } from './settings.js';
-import type { NotionSettings } from './types.js';
+import { getSettings, saveSettings } from './settings.js';
+import type { AppSettings } from './types.js';
 
 const form = document.getElementById('options-form') as HTMLFormElement | null;
 const statusField = document.getElementById('status');
@@ -11,19 +11,19 @@ async function hydrateForm() {
 
   const settings = await getSettings();
 
-  const apiKeyInput = document.getElementById('apiKey') as HTMLInputElement | null;
-  const databaseUrlInput = document.getElementById('databaseUrl') as HTMLInputElement | null;
+  const backendEndpointInput = document.getElementById('backendEndpoint') as HTMLInputElement | null;
+  const backendAuthTokenInput = document.getElementById('backendAuthToken') as HTMLInputElement | null;
   const titleInput = document.getElementById('titleProperty') as HTMLInputElement | null;
   const screenNameInput = document.getElementById('screenNameProperty') as HTMLInputElement | null;
   const userNameInput = document.getElementById('userNameProperty') as HTMLInputElement | null;
   const urlInput = document.getElementById('urlProperty') as HTMLInputElement | null;
   const timestampInput = document.getElementById('timestampProperty') as HTMLInputElement | null;
 
-  if (apiKeyInput) {
-    apiKeyInput.value = settings.notionApiKey;
+  if (backendEndpointInput) {
+    backendEndpointInput.value = settings.backendEndpoint;
   }
-  if (databaseUrlInput) {
-    databaseUrlInput.value = settings.notionDatabaseUrl;
+  if (backendAuthTokenInput) {
+    backendAuthTokenInput.value = settings.backendAuthToken;
   }
   if (titleInput) {
     titleInput.value = settings.propertyMap.title;
@@ -58,22 +58,8 @@ async function handleSubmit(event: Event) {
   setStatus('保存中...', false);
 
   const formData = new FormData(form);
-  const notionApiKey = String(formData.get('apiKey') ?? '').trim();
-  const notionDatabaseUrl = String(formData.get('databaseUrl') ?? '').trim();
-  const notionDatabaseId = parseDatabaseIdFromUrl(notionDatabaseUrl);
-
-  const isSupportedToken =
-    notionApiKey.startsWith('secret_') || notionApiKey.startsWith('ntn_');
-
-  if (!isSupportedToken) {
-    setStatus('Notion API キーは secret_ または ntn_ で始まる値を入力してください。', true);
-    return;
-  }
-
-  if (!notionDatabaseId) {
-    setStatus('データベース URL から ID を抽出できませんでした。URL を確認してください。', true);
-    return;
-  }
+  const backendEndpoint = String(formData.get('backendEndpoint') ?? '').trim();
+  const backendAuthToken = String(formData.get('backendAuthToken') ?? '').trim();
 
   const propertyMap = {
     title: String(formData.get('titleProperty') ?? '').trim(),
@@ -83,10 +69,22 @@ async function handleSubmit(event: Event) {
     postedAt: String(formData.get('timestampProperty') ?? '').trim()
   };
 
-  const settings: NotionSettings = {
-    notionApiKey,
-    notionDatabaseUrl,
-    notionDatabaseId,
+  if (!backendEndpoint) {
+    setStatus('バックエンドのエンドポイント URL を入力してください。', true);
+    return;
+  }
+
+  try {
+    // eslint-disable-next-line no-new
+    new URL(backendEndpoint);
+  } catch {
+    setStatus('バックエンドのエンドポイント URL が不正です。', true);
+    return;
+  }
+
+  const settings: AppSettings = {
+    backendEndpoint,
+    backendAuthToken,
     propertyMap
   };
 
