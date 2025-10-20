@@ -8,20 +8,44 @@ interface ExtractedPost {
 }
 
 function collectFromArticle(article: Element): ExtractedPost | null {
-  const namesRoot = article.querySelector('div[data-testid="User-Names"]');
+  const namesRoot = article.querySelector(
+    '[data-testid="User-Names"], [data-testid="User-Name"]'
+  );
   let screenName = '';
   let userName = '';
 
   if (namesRoot) {
-    const nameSpans = Array.from(namesRoot.querySelectorAll('span'));
-    for (const span of nameSpans) {
-      const value = span.textContent?.trim();
+    const nameCandidates = Array.from(
+      namesRoot.querySelectorAll<HTMLElement>('span, div[dir="auto"], div[dir="ltr"]')
+    );
+    for (const element of nameCandidates) {
+      const value = element.textContent?.trim();
       if (!value) {
         continue;
       }
+
+      const anchor = element.closest('a[href]');
+      let profilePath = '';
+      if (anchor) {
+        try {
+          const href = anchor.getAttribute('href') ?? '';
+          const url = href.startsWith('http')
+            ? new URL(href)
+            : new URL(href, 'https://x.com');
+          profilePath = url.pathname;
+        } catch {
+          profilePath = '';
+        }
+      }
+
+      const isProfileLink = /^\/[A-Za-z0-9_]+\/?$/.test(profilePath);
+      if (!isProfileLink && !value.startsWith('@')) {
+        continue;
+      }
+
       if (value.startsWith('@') && !userName) {
         userName = value;
-      } else if (!screenName) {
+      } else if (!screenName && !value.includes('@')) {
         screenName = value;
       }
       if (screenName && userName) {
