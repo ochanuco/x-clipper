@@ -1,6 +1,7 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { Client as NotionClient } from '@notionhq/client';
 import crypto from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -10,13 +11,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, 'uploads');
 
+dotenv.config();
+const serverEnvPath = path.join(__dirname, '.env');
+const serverEnv = dotenv.config({ path: serverEnvPath });
+if (serverEnv.error && serverEnv.error.code !== 'ENOENT') {
+  throw serverEnv.error;
+}
+
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 
 const NOTION_API_URL = 'https://api.notion.com/v1';
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = normalizeDatabaseId(process.env.NOTION_DATABASE_ID);
-const NOTION_VERSION = process.env.NOTION_VERSION ?? '2022-06-28';
+const NOTION_VERSION = process.env.NOTION_VERSION ?? '2025-09-03';
 const AUTH_TOKEN = process.env.CLIP_NOTION_TOKEN;
 const PORT = Number.parseInt(process.env.PORT ?? '8787', 10);
 const ASSET_BASE_URL =
@@ -37,6 +45,11 @@ if (!NOTION_API_KEY) {
 if (!NOTION_DATABASE_ID) {
   throw new Error('NOTION_DATABASE_ID is required');
 }
+
+const notion = new NotionClient({
+  auth: NOTION_API_KEY,
+  notionVersion: NOTION_VERSION
+});
 
 await mkdir(uploadsDir, { recursive: true });
 app.use(
@@ -81,6 +94,22 @@ app.post('/clip', async (req, res) => {
         console.warn('Failed to persist media', imageUrl, error);
       }
     }
+
+    const avatarUpload = avatarAsset
+      ? await uploadAssetToNotion(avatarAsset)
+      : null;
+    if (avatarUpload) {
+      avatarAsset.notionFileUpload = avatarUpload;
+    }
+
+    await Promise.all(
+      mediaAssets.map(async (asset) => {
+        const upload = await uploadAssetToNotion(asset);
+        if (upload) {
+          asset.notionFileUpload = upload;
+        }
+      })
+    );
 
     const page = await createNotionPage({
       payload,
@@ -231,25 +260,8 @@ function buildFileName(label, extension) {
 async function createNotionPage({ payload, avatarAsset, mediaAssets }) {
   const properties = buildProperties(payload);
   const children = buildChildren(payload, mediaAssets);
-
-  const icon = avatarAsset
-    ? {
-        type: 'external',
-        external: {
-          url: avatarAsset.assetUrl
-        }
-      }
-    : undefined;
-
-  const cover =
-    mediaAssets.length > 0
-      ? {
-          type: 'external',
-          external: {
-            url: mediaAssets[0].assetUrl
-          }
-        }
-      : undefined;
+  const icon = buildIconFromAsset(avatarAsset);
+  const cover = buildCoverFromAsset(mediaAssets[0]);
 
   const response = await notionFetch('/pages', {
     method: 'POST',
@@ -360,14 +372,15 @@ function buildChildren(payload, mediaAssets) {
   }
 
   for (const asset of mediaAssets) {
+    const imageSource = buildNotionFileSource(asset);
+    if (!imageSource) {
+      continue;
+    }
     children.push({
       object: 'block',
       type: 'image',
       image: {
-        type: 'external',
-        external: {
-          url: asset.assetUrl
-        }
+        ...imageSource
       }
     });
   }
@@ -375,13 +388,96 @@ function buildChildren(payload, mediaAssets) {
   return children;
 }
 
+function buildNotionFileSource(asset) {
+  if (!asset) {
+    return null;
+  }
+  if (asset.notionFileUpload?.id) {
+    return {
+      type: 'file_upload',
+      file_upload: {
+        id: asset.notionFileUpload.id
+      }
+    };
+  }
+  return {
+    type: 'external',
+    external: {
+      url: asset.assetUrl
+    }
+  };
+}
+
+async function createFileUploadObject() {
+  const response = await notionFetch('/file_uploads', {
+    method: 'POST',
+    body: '{}'
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw Object.assign(
+      new Error(
+        `Notion file upload create failed (${response.status}): ${JSON.stringify(
+          json
+        )}`
+      ),
+      { statusCode: response.status }
+    );
+  }
+
+  if (!json?.id) {
+    throw new Error('Notion file upload response missing id');
+  }
+
+  return json;
+}
+
+async function sendFileUploadContents({
+  fileUploadId,
+  buffer,
+  fileName,
+  contentType
+}) {
+  const formData = new FormData();
+  formData.append(
+    'file',
+    new Blob([buffer], {
+      type: contentType
+    }),
+    fileName
+  );
+
+  const response = await notionFetch(`/file_uploads/${fileUploadId}/send`, {
+    method: 'POST',
+    body: formData
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw Object.assign(
+      new Error(
+        `Notion file upload send failed (${response.status}): ${JSON.stringify(
+          json
+        )}`
+      ),
+      { statusCode: response.status }
+    );
+  }
+  return json;
+}
+
 function notionFetch(path, init) {
   const url = `${NOTION_API_URL}${path}`;
   const headers = {
     Authorization: `Bearer ${NOTION_API_KEY}`,
-    'Content-Type': 'application/json',
     'Notion-Version': NOTION_VERSION
   };
+
+  const isFormData =
+    typeof FormData !== 'undefined' && init?.body instanceof FormData;
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (init?.headers) {
     Object.assign(headers, init.headers);
@@ -391,4 +487,44 @@ function notionFetch(path, init) {
     ...init,
     headers
   });
+}
+
+async function uploadAssetToNotion(asset) {
+  try {
+    const buffer = await readFile(asset.filePath);
+    const fileUpload = await createFileUploadObject();
+    const uploaded = await sendFileUploadContents({
+      fileUploadId: fileUpload.id,
+      buffer,
+      fileName: asset.fileName,
+      contentType: asset.contentType
+    });
+
+    if (uploaded.status !== 'uploaded') {
+      throw new Error(
+        `Notion file upload did not complete (status: ${uploaded.status})`
+      );
+    }
+
+    return uploaded;
+  } catch (error) {
+    console.warn('Failed to upload asset to Notion', asset.fileName, error);
+    return null;
+  }
+}
+
+function buildIconFromAsset(asset) {
+  if (!asset) {
+    return undefined;
+  }
+  const source = buildNotionFileSource(asset);
+  return source ?? undefined;
+}
+
+function buildCoverFromAsset(asset) {
+  if (!asset) {
+    return undefined;
+  }
+  const source = buildNotionFileSource(asset);
+  return source ?? undefined;
 }

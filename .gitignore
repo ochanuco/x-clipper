@@ -3,3 +3,5 @@ dist
 .DS_Store
 *.log
 server/.env
+server/uploads/*
+!server/uploads/.gitkeep

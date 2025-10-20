@@ -18,6 +18,7 @@ pnpm install
    ```env
    NOTION_API_KEY=secret_xxx
    NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   NOTION_VERSION=2025-09-03            # Notion API version (required for file uploads)
    CLIP_NOTION_TOKEN=local-dev-token   # 任意、空でも可
    PORT=8787
    ASSET_BASE_URL=https://your-domain.example.com   # 画像を配信する公開 URL
@@ -28,6 +29,8 @@ pnpm install
 ```
 
 バックエンドは `POST /clip` を受け取り、X から渡された画像をダウンロード → `server/uploads` に保存 → 公開 URL を Notion に渡してページを作成します。`CLIP_NOTION_TOKEN` を設定すると Bearer 認証が有効化されます。`ASSET_BASE_URL` には Notion からアクセス可能なベース URL（例: `https://clip.example.com`）を指定してください。ローカル開発時はデフォルトで `http://localhost:8787` を利用します。
+
+Notion への画像添付は Direct Upload API（`/v1/file_uploads` → `/v1/file_uploads/{id}/send`）を利用しています。アップロードしたファイルは 1 時間以内にページへアタッチする必要があるため、サーバー内でページ作成まで一気通貫で処理しています。
 
 ## 拡張機能のビルド
 ```bash
