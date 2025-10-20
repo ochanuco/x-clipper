@@ -29,17 +29,116 @@ function bestImageUrl(img: HTMLImageElement) {
   return img.currentSrc || img.src;
 }
 
-function normalizeImageUrl(url: string) {
-  if (!url) {
+function normalizeImageUrl(original: string) {
+  if (!original) {
     return '';
   }
+
+  let url = original.trim();
+
+  if (url.startsWith('blob:')) {
+    return '';
+  }
+
   if (url.startsWith('//')) {
-    return `https:${url}`;
+    url = `https:${url}`;
   }
   if (url.startsWith('/')) {
-    return `https://x.com${url}`;
+    url = `https://x.com${url}`;
   }
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'pbs.twimg.com') {
+      const nameParam = parsed.searchParams.get('name');
+      if (nameParam && nameParam !== 'orig') {
+        parsed.searchParams.set('name', 'orig');
+      }
+      return parsed.toString();
+    }
+  } catch {
+    // ignore parse errors
+  }
+
   return url;
+}
+
+function isLikelyAvatarUrl(url: string) {
+  const lower = url.toLowerCase();
+  return lower.includes('profile_images') || lower.includes('default_profile');
+}
+
+function findOwningArticle(node: Element | null) {
+  return node?.closest('article[data-testid="tweet"], article[data-testid="tweetDetail"]');
+}
+
+function pushUrl(
+  urls: Set<string>,
+  avatarUrl: string | null,
+  raw: string | null | undefined
+) {
+  if (!raw) {
+    return;
+  }
+  const normalized = normalizeImageUrl(raw);
+  if (!normalized) {
+    return;
+  }
+  if (avatarUrl && normalized === avatarUrl) {
+    return;
+  }
+  if (isLikelyAvatarUrl(normalized)) {
+    return;
+  }
+  urls.add(normalized);
+}
+
+function collectMediaUrls(article: Element, avatarUrl: string | null) {
+  const urls = new Set<string>();
+
+  const imageSelectors = [
+    '[data-testid="tweetPhoto"] img',
+    '[data-testid="previewImage"] img',
+    '[data-testid="card.previewImage"] img'
+  ];
+
+  for (const selector of imageSelectors) {
+    article.querySelectorAll<HTMLImageElement>(selector).forEach((img) => {
+      const owner = findOwningArticle(img);
+      if (owner && owner !== article) {
+        return;
+      }
+      const candidate = bestImageUrl(img);
+      pushUrl(urls, avatarUrl, candidate);
+    });
+  }
+
+  const videoSelectors = [
+    '[data-testid="videoPlayer"] video',
+    '[data-testid="videoPlayer"] source',
+    'video[data-testid="tweetGifPlayerVideo"]'
+  ];
+
+  for (const selector of videoSelectors) {
+    article
+      .querySelectorAll<HTMLVideoElement | HTMLSourceElement>(selector)
+      .forEach((node) => {
+        const owner = findOwningArticle(node);
+        if (owner && owner !== article) {
+          return;
+        }
+        if (node instanceof HTMLVideoElement) {
+          pushUrl(urls, avatarUrl, node.poster);
+          node.querySelectorAll('source').forEach((source) =>
+            pushUrl(urls, avatarUrl, source.src)
+          );
+        } else if (node instanceof HTMLSourceElement) {
+          pushUrl(urls, avatarUrl, node.src);
+        }
+      });
+  }
+
+  return Array.from(urls).slice(0, MAX_IMAGES);
 }
 
 function collectFromArticle(article: Element): ExtractedPost | null {
@@ -102,32 +201,7 @@ function collectFromArticle(article: Element): ExtractedPost | null {
     (document.querySelector('[data-testid="Tweet-User-Avatar"] img') as HTMLImageElement | null);
   const avatarUrl = avatarElement ? normalizeImageUrl(bestImageUrl(avatarElement)) : null;
 
-  const primaryMedia = Array.from(
-    article.querySelectorAll<HTMLImageElement>('div[data-testid="tweetPhoto"] img')
-  );
-
-  const fallbackMedia = Array.from(
-    article.querySelectorAll<HTMLImageElement>('img')
-  ).filter((img) => {
-    const testId = img.closest('[data-testid]')?.getAttribute('data-testid')?.toLowerCase() ?? '';
-    if (testId.includes('tweetphoto') || testId.includes('mediaimage') || testId.includes('previewimage')) {
-      return true;
-    }
-    return false;
-  });
-
-  const imageSet = new Set<HTMLImageElement>([...primaryMedia, ...fallbackMedia]);
-  if (avatarElement) {
-    imageSet.delete(avatarElement);
-  }
-
-  const images = Array.from(imageSet)
-    .map((img) => normalizeImageUrl(bestImageUrl(img)))
-    .filter((src): src is string => typeof src === 'string' && src.length > 0);
-
-  if (images.length > MAX_IMAGES) {
-    images.length = MAX_IMAGES;
-  }
+  const images = collectMediaUrls(article, avatarUrl);
 
   if (!screenName || !userName) {
     const titleContent =
