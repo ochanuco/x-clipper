@@ -46,17 +46,39 @@ function collectFromArticle(article: Element): ExtractedPost | null {
     .filter((src): src is string => typeof src === 'string' && src.length > 0);
 
   if (!screenName || !userName) {
-    const titleMeta = document.querySelector('meta[property="og:title"]');
-    const titleContent = titleMeta?.getAttribute('content') ?? '';
-    const [fallbackName, fallbackHandle] = titleContent.split(' on X: ');
-    if (!screenName && fallbackName) {
-      screenName = fallbackName.trim();
-    }
-    if (!userName && fallbackHandle) {
-      const handle = fallbackHandle.split(':')[0]?.trim();
-      if (handle?.startsWith('@')) {
-        userName = handle;
+    const titleContent =
+      document
+        .querySelector('meta[property="og:title"]')
+        ?.getAttribute('content') ?? '';
+    const titleMatch = titleContent.match(/^(.*?)\s+\((@[^\s)]+)\)/);
+
+    if (!screenName && titleMatch?.[1]) {
+      const candidate = titleMatch[1].trim();
+      if (candidate && candidate !== text) {
+        screenName = candidate;
       }
+    }
+    if (!userName && titleMatch?.[2]) {
+      userName = titleMatch[2].trim();
+    }
+
+    if (!userName) {
+      const canonicalUrl =
+        document.querySelector('link[rel="canonical"]')?.getAttribute('href') ??
+        window.location.href;
+      try {
+        const url = new URL(canonicalUrl);
+        const [handle] = url.pathname.split('/').filter(Boolean);
+        if (handle) {
+          userName = handle.startsWith('@') ? handle : `@${handle}`;
+        }
+      } catch {
+        // noop
+      }
+    }
+
+    if (!screenName && userName) {
+      screenName = userName.replace(/^@/, '');
     }
   }
 
