@@ -5,7 +5,7 @@ Chrome 拡張機能「Clip to Notion」は、X（Twitter）の投稿詳細ペー
 ## 前提条件
 - Node.js 20 以上
 - pnpm 9 系
-- Notion で発行したシークレットキー（`secret_` で開始）
+- Notion で発行したシークレットキー（`secret_` または `ntn_` で開始）
 - 対象データベースに対して前述のキーを共有済みであること
 
 ## セットアップ

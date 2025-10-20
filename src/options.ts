@@ -62,8 +62,11 @@ async function handleSubmit(event: Event) {
   const notionDatabaseUrl = String(formData.get('databaseUrl') ?? '').trim();
   const notionDatabaseId = parseDatabaseIdFromUrl(notionDatabaseUrl);
 
-  if (!notionApiKey.startsWith('secret_')) {
-    setStatus('Notion API キーは secret_ で始まる値を入力してください。', true);
+  const isSupportedToken =
+    notionApiKey.startsWith('secret_') || notionApiKey.startsWith('ntn_');
+
+  if (!isSupportedToken) {
+    setStatus('Notion API キーは secret_ または ntn_ で始まる値を入力してください。', true);
     return;
   }
 
