@@ -1,4 +1,5 @@
 import { createNotionPage } from './notion.js';
+import type { NotionError } from './notion.js';
 import { getSettings, parseDatabaseIdFromUrl, saveSettings } from './settings.js';
 import type { XPostPayload } from './types.js';
 
@@ -56,11 +57,12 @@ async function handleClip(tab?: chrome.tabs.Tab) {
     await showNotification('Notion に投稿を保存しました。');
   } catch (error) {
     let message = '処理中にエラーが発生しました。';
-    if (error instanceof Error) {
+    if (isNotionError(error)) {
+      const formatted = formatNotionError(error);
+      message = formatted.userMessage;
+      console.warn('Notion API error', formatted.debug);
+    } else if (error instanceof Error) {
       message = error.message;
-      if ('responseStatus' in error && 'responseBody' in error) {
-        console.warn('Notion API error', error);
-      }
     }
     await showNotification(message, true);
   }
@@ -168,6 +170,54 @@ async function sendExtractionRequest(tabId: number): Promise<XPostPayload> {
       }
     );
   });
+}
+
+function isNotionError(error: unknown): error is NotionError {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      ('responseStatus' in error || 'responseBody' in error)
+  );
+}
+
+function formatNotionError(error: NotionError) {
+  const status = error.responseStatus ?? '不明';
+  let code = '';
+  let message = '';
+
+  if (error.responseBody) {
+    try {
+      const parsed = JSON.parse(error.responseBody) as {
+        code?: string;
+        message?: string;
+      };
+      code = parsed.code ?? '';
+      message = parsed.message ?? '';
+    } catch {
+      message = error.responseBody.slice(0, 200);
+    }
+  }
+
+  const parts = [`HTTP ${status}`];
+  if (code) {
+    parts.push(code);
+  }
+  const summary = parts.join(' / ');
+
+  const userMessage =
+    message.trim().length > 0
+      ? `Notion への書き込みに失敗しました（${summary}）。${message}`
+      : `Notion への書き込みに失敗しました（${summary}）。`;
+
+  return {
+    userMessage,
+    debug: {
+      status: error.responseStatus,
+      code,
+      message,
+      raw: error.responseBody
+    }
+  };
 }
 
 async function showNotification(message: string, isError = false) {
