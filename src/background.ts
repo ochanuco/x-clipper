@@ -1,14 +1,14 @@
 import { getSettings } from './settings.js';
 import type { AppSettings, XPostPayload } from './types.js';
 
-const CONTEXT_MENU_ID = 'clip-notion-x-post';
+const CONTEXT_MENU_ID = 'x-clipper-x-post';
 const NOTIFICATION_ICON_PATH = 'icons/icon-128.png';
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: CONTEXT_MENU_ID,
-      title: 'この投稿を Notion に保存',
+      title: 'X Clipper で Notion に保存',
       contexts: ['page'],
       documentUrlPatterns: [
         'https://x.com/*/status/*',
@@ -209,7 +209,7 @@ async function showNotification(message: string, isError = false) {
       {
         type: 'basic',
         iconUrl,
-        title: 'Clip to Notion',
+        title: 'X Clipper',
         message
       },
       () => {

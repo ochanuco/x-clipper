@@ -25,7 +25,8 @@ const NOTION_API_URL = 'https://api.notion.com/v1';
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const NOTION_DATABASE_ID = normalizeDatabaseId(process.env.NOTION_DATABASE_ID);
 const NOTION_VERSION = process.env.NOTION_VERSION ?? '2025-09-03';
-const AUTH_TOKEN = process.env.CLIP_NOTION_TOKEN;
+const AUTH_TOKEN =
+  process.env.X_CLIPPER_TOKEN ?? process.env.CLIP_NOTION_TOKEN;
 const PORT = Number.parseInt(process.env.PORT ?? '8787', 10);
 const ASSET_BASE_URL =
   process.env.ASSET_BASE_URL ?? `http://localhost:${PORT}`;
@@ -137,7 +138,7 @@ app.get('/healthz', (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(
-    `Clip to Notion backend listening on http://localhost:${PORT} (asset base ${ASSET_BASE_URL})`
+    `X Clipper backend listening on http://localhost:${PORT} (asset base ${ASSET_BASE_URL})`
   );
 });
 

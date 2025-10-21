@@ -1,6 +1,6 @@
-# Clip to Notion
+# X Clipper
 
-Chrome 拡張機能「Clip to Notion」は、X（Twitter）の投稿詳細ページから表示名・ユーザー名・本文・投稿時刻・画像を抽出し、バックエンド経由で Notion に保存します。バックエンドは取得した画像を自身のストレージ（`server/uploads`）へ保存し、その公開 URL を Notion に渡すことで、元の投稿が消えても Notion 上で閲覧できるようにしています。Notion が画像へアクセスできるよう、バックエンドはインターネットから到達可能なホストへ配置する前提です。
+Chrome 拡張機能「X Clipper」は、X（Twitter）の投稿詳細ページから表示名・ユーザー名・本文・投稿時刻・画像を抽出し、バックエンド経由で Notion に保存することに特化しています。バックエンドは取得した画像を自身のストレージ（`server/uploads`）へ保存し、その公開 URL を Notion に渡すことで、元の投稿が消えても Notion 上で閲覧できるようにしています。Notion が画像へアクセスできるよう、バックエンドはインターネットから到達可能なホストへ配置する前提です。
 
 ## 前提条件
 - Node.js 20 以上
@@ -19,7 +19,7 @@ pnpm install
    NOTION_API_KEY=secret_xxx
    NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    NOTION_VERSION=2025-09-03            # Notion API version (required for file uploads)
-   CLIP_NOTION_TOKEN=local-dev-token   # 任意、空でも可
+   X_CLIPPER_TOKEN=local-dev-token     # 任意、空でも可
    PORT=8787
    ASSET_BASE_URL=https://your-domain.example.com   # 画像を配信する公開 URL
    ```
@@ -28,7 +28,7 @@ pnpm install
    pnpm run server
 ```
 
-バックエンドは `POST /clip` を受け取り、X から渡された画像をダウンロード → `server/uploads` に保存 → 公開 URL を Notion に渡してページを作成します。`CLIP_NOTION_TOKEN` を設定すると Bearer 認証が有効化されます。`ASSET_BASE_URL` には Notion からアクセス可能なベース URL（例: `https://clip.example.com`）を指定してください。ローカル開発時はデフォルトで `http://localhost:8787` を利用します。
+バックエンドは `POST /clip` を受け取り、X から渡された画像をダウンロード → `server/uploads` に保存 → 公開 URL を Notion に渡してページを作成します。`X_CLIPPER_TOKEN` を設定すると Bearer 認証が有効化されます（互換性のため `CLIP_NOTION_TOKEN` も読み取ります）。`ASSET_BASE_URL` には Notion からアクセス可能なベース URL（例: `https://clip.example.com`）を指定してください。ローカル開発時はデフォルトで `http://localhost:8787` を利用します。
 
 Notion への画像添付は Direct Upload API（`/v1/file_uploads` → `/v1/file_uploads/{id}/send`）を利用しています。アップロードしたファイルは 1 時間以内にページへアタッチする必要があるため、サーバー内でページ作成まで一気通貫で処理しています。
 
@@ -44,7 +44,7 @@ pnpm run build
 3. 「パッケージ化されていない拡張機能を読み込む」から `dist/` ディレクトリを選択。
 
 ## 拡張機能の設定
-1. 拡張機能のオプションページ（`chrome://extensions/` → Clip to Notion → 詳細 → 拡張機能オプション）を開く。
+1. 拡張機能のオプションページ（`chrome://extensions/` → X Clipper → 詳細 → 拡張機能オプション）を開く。
 2. バックエンドの `POST /clip` エンドポイント URL と、必要に応じて Bearer トークンを登録。
 3. Notion データベースのプロパティ名（Title・Screen Name・Username など）を入力して保存。
 
