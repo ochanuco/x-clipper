@@ -8,7 +8,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: CONTEXT_MENU_ID,
-      title: 'X Clipper で Notion に保存',
+      title: '𝕏 Clipper で Notion に保存',
       contexts: ['page'],
       documentUrlPatterns: [
         'https://x.com/*/status/*',
@@ -209,7 +209,7 @@ async function showNotification(message: string, isError = false) {
       {
         type: 'basic',
         iconUrl,
-        title: 'X Clipper',
+        title: '𝕏 Clipper',
         message
       },
       () => {

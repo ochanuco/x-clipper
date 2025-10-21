@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "X Clipper",
+  "name": "𝕏 Clipper",
   "description": "Clip X (Twitter) posts into your Notion workspace with media backups.",
   "version": "0.1.0",
   "icons": {
@@ -8,7 +8,7 @@
   },
   "options_page": "options.html",
   "action": {
-    "default_title": "X Clipper",
+    "default_title": "𝕏 Clipper",
     "default_icon": {
       "128": "icons/icon-128.png"
     }

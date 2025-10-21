@@ -138,7 +138,7 @@ app.get('/healthz', (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(
-    `X Clipper backend listening on http://localhost:${PORT} (asset base ${ASSET_BASE_URL})`
+    `𝕏 Clipper backend listening on http://localhost:${PORT} (asset base ${ASSET_BASE_URL})`
   );
 });
 
