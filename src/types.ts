@@ -7,8 +7,9 @@ export interface NotionPropertyMap {
 }
 
 export interface AppSettings {
-  backendEndpoint: string;
-  backendAuthToken: string;
+  notionApiKey: string;
+  notionDatabaseId: string;
+  notionVersion: string;
   propertyMap: NotionPropertyMap;
 }
 

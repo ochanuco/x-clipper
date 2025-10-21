@@ -2,7 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <title>𝕏 Clipper 設定</title>
+    <title>X Clipper 設定</title>
     <style>
       body {
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -88,38 +88,51 @@
   </head>
   <body>
     <main>
-      <h1>バックエンド設定</h1>
+      <h1>Notion 連携設定</h1>
       <form id="options-form">
         <fieldset>
           <div class="field">
-            <label for="backendEndpoint">バックエンドのエンドポイント</label>
+            <label for="notionApiKey">Notion API キー</label>
             <input
-              id="backendEndpoint"
-              name="backendEndpoint"
-              type="url"
-              placeholder="https://example.com/clip"
+              id="notionApiKey"
+              name="notionApiKey"
+              type="password"
+              autocomplete="off"
+              placeholder="secret_xxx"
               required
             />
             <p class="helper">
-              リバースプロキシやバックエンド API の <code>/clip</code> エンドポイントを指定します。
+              Notion の統合で発行したシークレット（<code>secret_</code> / <code>ntn_</code>）を入力してください。
             </p>
           </div>
           <div class="field">
-            <label for="backendAuthToken">認証トークン (任意)</label>
+            <label for="notionDatabaseId">Notion データベース ID</label>
             <input
-              id="backendAuthToken"
-              name="backendAuthToken"
-              type="password"
-              autocomplete="off"
+              id="notionDatabaseId"
+              name="notionDatabaseId"
+              required
+              placeholder="XXXXXXXXXXXXXX"
             />
             <p class="helper">
-              バックエンドが Bearer 認証を要求する場合に指定します。未設定なら送信されません。
+              対象データベースの URL 末尾に含まれる 32 文字の ID またはハイフン付き UUID を入力します。
+            </p>
+          </div>
+          <div class="field">
+            <label for="notionVersion">Notion API バージョン</label>
+            <input
+              id="notionVersion"
+              name="notionVersion"
+              value="2025-09-03"
+              required
+            />
+            <p class="helper">
+              Direct Upload が有効なバージョン（例: <code>2025-09-03</code>）を指定します。
             </p>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>プロパティ名</legend>
+          <legend>プロパティ名マッピング</legend>
           <div class="field">
             <label for="titleProperty">タイトル (Notion の Title プロパティ)</label>
             <input id="titleProperty" name="titleProperty" value="Name" required />

@@ -11,19 +11,23 @@ async function hydrateForm() {
 
   const settings = await getSettings();
 
-  const backendEndpointInput = document.getElementById('backendEndpoint') as HTMLInputElement | null;
-  const backendAuthTokenInput = document.getElementById('backendAuthToken') as HTMLInputElement | null;
+  const notionApiKeyInput = document.getElementById('notionApiKey') as HTMLInputElement | null;
+  const notionDatabaseIdInput = document.getElementById('notionDatabaseId') as HTMLInputElement | null;
+  const notionVersionInput = document.getElementById('notionVersion') as HTMLInputElement | null;
   const titleInput = document.getElementById('titleProperty') as HTMLInputElement | null;
   const screenNameInput = document.getElementById('screenNameProperty') as HTMLInputElement | null;
   const userNameInput = document.getElementById('userNameProperty') as HTMLInputElement | null;
   const urlInput = document.getElementById('urlProperty') as HTMLInputElement | null;
   const timestampInput = document.getElementById('timestampProperty') as HTMLInputElement | null;
 
-  if (backendEndpointInput) {
-    backendEndpointInput.value = settings.backendEndpoint;
+  if (notionApiKeyInput) {
+    notionApiKeyInput.value = settings.notionApiKey;
   }
-  if (backendAuthTokenInput) {
-    backendAuthTokenInput.value = settings.backendAuthToken;
+  if (notionDatabaseIdInput) {
+    notionDatabaseIdInput.value = settings.notionDatabaseId;
+  }
+  if (notionVersionInput) {
+    notionVersionInput.value = settings.notionVersion;
   }
   if (titleInput) {
     titleInput.value = settings.propertyMap.title;
@@ -58,8 +62,9 @@ async function handleSubmit(event: Event) {
   setStatus('保存中...', false);
 
   const formData = new FormData(form);
-  const backendEndpoint = String(formData.get('backendEndpoint') ?? '').trim();
-  const backendAuthToken = String(formData.get('backendAuthToken') ?? '').trim();
+  const notionApiKey = String(formData.get('notionApiKey') ?? '').trim();
+  const notionDatabaseId = String(formData.get('notionDatabaseId') ?? '').trim();
+  const notionVersion = String(formData.get('notionVersion') ?? '').trim();
 
   const propertyMap = {
     title: String(formData.get('titleProperty') ?? '').trim(),
@@ -69,22 +74,30 @@ async function handleSubmit(event: Event) {
     postedAt: String(formData.get('timestampProperty') ?? '').trim()
   };
 
-  if (!backendEndpoint) {
-    setStatus('バックエンドのエンドポイント URL を入力してください。', true);
+  if (!notionApiKey) {
+    setStatus('Notion API キーを入力してください。', true);
     return;
   }
 
-  try {
-    // eslint-disable-next-line no-new
-    new URL(backendEndpoint);
-  } catch {
-    setStatus('バックエンドのエンドポイント URL が不正です。', true);
+  if (!notionDatabaseId) {
+    setStatus('Notion データベース ID を入力してください。', true);
+    return;
+  }
+
+  if (!/^[a-f0-9-]{32,36}$/i.test(notionDatabaseId)) {
+    setStatus('Notion データベース ID の形式が正しくありません。', true);
+    return;
+  }
+
+  if (!notionVersion) {
+    setStatus('Notion API バージョンを入力してください。', true);
     return;
   }
 
   const settings: AppSettings = {
-    backendEndpoint,
-    backendAuthToken,
+    notionApiKey,
+    notionDatabaseId,
+    notionVersion,
     propertyMap
   };
 

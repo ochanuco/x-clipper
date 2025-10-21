@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "𝕏 Clipper",
+  "name": "X Clipper",
   "description": "Clip X (Twitter) posts into your Notion workspace with media backups.",
   "version": "0.1.0",
   "icons": {
@@ -8,7 +8,7 @@
   },
   "options_page": "options.html",
   "action": {
-    "default_title": "𝕏 Clipper",
+    "default_title": "X Clipper",
     "default_icon": {
       "128": "icons/icon-128.png"
     }
@@ -27,6 +27,9 @@
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
+    "https://*.twimg.com/*",
+    "https://video.twimg.com/*",
+    "https://api.notion.com/*",
     "http://localhost:8787/*",
     "http://127.0.0.1:8787/*"
   ],
