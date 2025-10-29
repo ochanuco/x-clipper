@@ -258,14 +258,183 @@ async function downloadAsset(url: string, label: string): Promise<DownloadedAsse
   const extension = resolveExtension(url, contentType);
   const fileName = buildFileName(label, extension);
 
-  return {
-    label,
-    sourceUrl: url,
-    blob,
-    fileName,
-    contentType
-  };
+    const asset = {
+      label,
+      sourceUrl: url,
+      blob,
+      fileName,
+      contentType
+    };
+
+    // Save to cache for potential retries / delayed uploads
+    try {
+      // Fire-and-forget; don't block if cache fails
+      void saveToCache({ fileName: asset.fileName, blob: asset.blob, meta: { sourceUrl: url, label } });
+    } catch (err) {
+      console.warn('failed to save asset to cache', err);
+    }
+
+    return asset;
 }
+
+// IndexedDB cache utilities --------------------------------------------------
+const IDB_DB_NAME = 'x-clipper-cache';
+const IDB_STORE_NAME = 'assets';
+
+// TTL for cached assets (default 7 days)
+const DEFAULT_CACHE_TTL_DAYS = 7;
+const DEFAULT_CACHE_TTL_MS = DEFAULT_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
+
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
+        db.createObjectStore(IDB_STORE_NAME, { keyPath: 'fileName' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveToCache(asset: { fileName: string; blob: Blob; meta?: Record<string, unknown> }): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(IDB_STORE_NAME);
+    const putReq = store.put({ fileName: asset.fileName, blob: asset.blob, meta: asset.meta ?? {}, createdAt: Date.now() });
+    putReq.onsuccess = () => resolve();
+    putReq.onerror = () => reject(putReq.error);
+  });
+}
+
+async function getFromCache(fileName: string): Promise<{ fileName: string; blob: Blob; meta?: Record<string, unknown> } | null> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_NAME, 'readonly');
+    const store = tx.objectStore(IDB_STORE_NAME);
+    const req = store.get(fileName);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function deleteFromCache(fileName: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(IDB_STORE_NAME);
+    const req = store.delete(fileName);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getCachedAsset(fileName: string): Promise<{ fileName: string; blob: Blob; meta?: Record<string, unknown> } | null> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_NAME, 'readonly');
+    const store = tx.objectStore(IDB_STORE_NAME);
+    const req = store.get(fileName);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// Handle messages from options page for reuploading cached assets
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (!message || message.type !== 'REUPLOAD_ASSET') return undefined;
+  const fileName: string = message.fileName;
+  (async () => {
+    try {
+      const cached = await getCachedAsset(fileName);
+      if (!cached) {
+        sendResponse({ success: false, error: 'not_found' });
+        return;
+      }
+
+      // we need settings to create upload object
+      const settings = await getSettings();
+      const asset: DownloadedAsset = {
+        label: fileName,
+        sourceUrl: String(cached.meta?.sourceUrl ?? ''),
+        blob: cached.blob,
+        fileName: cached.fileName,
+        contentType: cached.blob.type || 'application/octet-stream'
+      };
+
+      const upload = await uploadAssetToNotion(asset, settings);
+      if (upload) {
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, error: 'upload_failed' });
+      }
+    } catch (err) {
+      console.warn('reupload failed', err);
+      sendResponse({ success: false, error: String(err) });
+    }
+  })();
+  return true; // indicate async sendResponse
+});
+
+async function cleanupExpiredCache(ttlMs = DEFAULT_CACHE_TTL_MS): Promise<number> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(IDB_STORE_NAME);
+    const req = store.openCursor();
+    let deleted = 0;
+    req.onsuccess = (ev) => {
+      const cursor = (ev.target as IDBRequest).result as IDBCursorWithValue | null;
+      if (!cursor) {
+        resolve(deleted);
+        return;
+      }
+      try {
+        const record = cursor.value as { fileName: string; createdAt?: number };
+        const createdAt = record?.createdAt ?? 0;
+        if (Date.now() - createdAt > ttlMs) {
+          cursor.delete();
+          deleted++;
+        }
+        cursor.continue();
+      } catch (err) {
+        console.warn('error while scanning cache for cleanup', err);
+        cursor.continue();
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// Schedule daily cleanup using chrome.alarms
+try {
+  chrome.alarms.create('xclip-cache-cleanup', { periodInMinutes: 24 * 60 });
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'xclip-cache-cleanup') {
+      void cleanupExpiredCache().then((deleted) => {
+        if (deleted > 0) {
+          console.log(`x-clipper: cleaned up ${deleted} cached assets`);
+        }
+      });
+    }
+  });
+} catch (err) {
+  // In environments where alarms aren't available (e.g., tests), ignore
+  console.warn('chrome.alarms not available, skipping scheduled cache cleanup', err);
+}
+
+// Run a cleanup on startup of the service worker
+void cleanupExpiredCache().then((deleted) => {
+  if (deleted > 0) {
+    console.log(`x-clipper: cleaned up ${deleted} cached assets on startup`);
+  }
+}).catch((err) => {
+  console.warn('x-clipper: startup cache cleanup failed', err);
+});
+
 
 async function uploadAssetToNotion(
   asset: DownloadedAsset,
@@ -288,7 +457,13 @@ async function uploadAssetToNotion(
         `Notion へのアップロードが完了しませんでした（status: ${uploaded.status}）`
       );
     }
-    return uploaded;
+      // On success, remove cached copy if present
+      try {
+        await deleteFromCache(asset.fileName);
+      } catch (err) {
+        console.warn('failed to delete cached asset after upload', asset.fileName, err);
+      }
+      return uploaded;
   } catch (error) {
     console.warn('Notion へのファイルアップロードに失敗しました', asset.fileName, error);
     return null;
@@ -397,6 +572,20 @@ async function createNotionPage({
       detail = JSON.stringify(data);
     } catch {
       detail = await response.text();
+    }
+    console.error('Notion /pages response error', { status: response.status, body: detail });
+    // If database not found or permissions issue, notify the user with guidance
+    try {
+      const parsed = JSON.parse(detail || '{}');
+      if (response.status === 404 || parsed?.code === 'object_not_found') {
+        void showNotification('Notion のデータベースが見つかりません。データベースを integration に共有しているか確認してください。', true);
+      } else if (response.status === 401 || response.status === 403) {
+        void showNotification('Notion API キーが無効か権限が不足しています。Options で API キーと DB 共有を確認してください。', true);
+      } else {
+        void showNotification('Notion へのページ作成に失敗しました。コンソールログを確認してください。', true);
+      }
+    } catch (err) {
+      void showNotification('Notion へのページ作成に失敗しました。コンソールログを確認してください。', true);
     }
     throw new Error(`Notion ページの作成に失敗しました（HTTP ${response.status}）: ${detail}`);
   }
@@ -591,6 +780,7 @@ function normalizeDatabaseId(input: string) {
   if (!match) {
     throw new Error('Notion データベース ID の形式が認識できませんでした。');
   }
+  // return compact (no hyphens) which Notion API accepts as database_id
   return match[0].replace(/-/g, '');
 }
 
