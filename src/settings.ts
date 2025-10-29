@@ -11,8 +11,9 @@ const DEFAULT_PROPERTY_MAP: NotionPropertyMap = {
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
-  backendEndpoint: '',
-  backendAuthToken: '',
+  notionApiKey: '',
+  notionDatabaseId: '',
+  notionVersion: '2025-09-03',
   propertyMap: DEFAULT_PROPERTY_MAP
 };
 
@@ -25,11 +26,20 @@ export async function getSettings(): Promise<AppSettings> {
         ...(stored.propertyMap ?? {})
       };
 
-      resolve({
+      const coerced: AppSettings = {
         ...DEFAULT_SETTINGS,
-        ...stored,
+        notionApiKey: String((stored as Record<string, unknown>).notionApiKey ?? ''),
+        notionDatabaseId: String(
+          (stored as Record<string, unknown>).notionDatabaseId ?? ''
+        ),
+        notionVersion: String(
+          (stored as Record<string, unknown>).notionVersion ??
+            DEFAULT_SETTINGS.notionVersion
+        ),
         propertyMap
-      });
+      };
+
+      resolve(coerced);
     });
   });
 }
