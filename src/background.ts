@@ -387,8 +387,41 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const settings = await getSettings();
       validateSettings(settings);
       const payload = message.data as XPostPayload;
-      await clipPostToNotion(settings, payload);
-      sendResponse({ success: true });
+      try {
+        await clipPostToNotion(settings, payload);
+        sendResponse({ success: true });
+        return;
+      } catch (err) {
+        console.warn('clip to notion failed, falling back to downloads', err);
+        // fallback: download media files (avatar + images)
+        const urls: string[] = [];
+        if (payload.avatarUrl) urls.push(payload.avatarUrl);
+        if (Array.isArray(payload.images)) urls.push(...payload.images);
+
+        // Attempt to use chrome.downloads if available
+        if (chrome.downloads && chrome.downloads.download) {
+          for (const url of urls) {
+            try {
+              const ext = resolveExtension(url, 'application/octet-stream');
+              const name = buildFileName('x-clip', ext);
+              chrome.downloads.download({ url, filename: name, conflictAction: 'uniquify' }, (id) => {
+                if (chrome.runtime.lastError) {
+                  console.warn('download failed', chrome.runtime.lastError.message);
+                } else {
+                  console.log('started download', id, url);
+                }
+              });
+            } catch (err2) {
+              console.warn('fallback download error for', url, err2);
+            }
+          }
+          sendResponse({ success: false, fallback: 'downloads' });
+          return;
+        }
+
+        sendResponse({ success: false, error: String(err) });
+        return;
+      }
     } catch (err) {
       console.warn('CLIP_X_POST handler error', err);
       sendResponse({ success: false, error: String(err) });

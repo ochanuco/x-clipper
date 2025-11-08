@@ -24,6 +24,9 @@
     "storage",
     "scripting"
   ],
+  "optional_permissions": [
+    "downloads"
+  ],
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
