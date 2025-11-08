@@ -379,6 +379,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true; // indicate async sendResponse
 });
 
+// Handle clip requests from content script save buttons
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (!message || message.type !== 'CLIP_X_POST') return undefined;
+  (async () => {
+    try {
+      const settings = await getSettings();
+      validateSettings(settings);
+      const payload = message.data as XPostPayload;
+      await clipPostToNotion(settings, payload);
+      sendResponse({ success: true });
+    } catch (err) {
+      console.warn('CLIP_X_POST handler error', err);
+      sendResponse({ success: false, error: String(err) });
+    }
+  })();
+  return true;
+});
+
 async function cleanupExpiredCache(ttlMs = DEFAULT_CACHE_TTL_MS): Promise<number> {
   const db = await openDb();
   return new Promise((resolve, reject) => {

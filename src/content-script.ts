@@ -312,3 +312,175 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true;
 });
+
+// --- Timeline save button injection --------------------------------------
+function createSaveButton(): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'x-clipper-save-button';
+  btn.setAttribute('aria-label', '保存');
+  // Icon-style circular button (compact)
+  btn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke="#111827" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="#fff" />
+    </svg>
+  `;
+  btn.style.display = 'inline-flex';
+  btn.style.alignItems = 'center';
+  btn.style.justifyContent = 'center';
+  btn.style.width = '34px';
+  btn.style.height = '34px';
+  btn.style.padding = '0';
+  btn.style.marginLeft = '6px';
+  btn.style.borderRadius = '999px';
+  btn.style.border = '1px solid rgba(0,0,0,0.08)';
+  btn.style.background = 'white';
+  btn.style.cursor = 'pointer';
+  btn.style.boxShadow = '0 1px 0 rgba(0,0,0,0.03)';
+  return btn;
+}
+
+function insertSaveButton(article: Element) {
+  try {
+    console.debug('x-clipper: insertSaveButton called for article', article);
+    // avoid duplicating
+    if (article.querySelector('.x-clipper-save-button')) return;
+
+    // Try to find an action area to append the button
+    const actionArea =
+      article.querySelector('[role="group"]') ??
+      article.querySelector('[data-testid="tweetAction"]') ??
+      article.querySelector('div[aria-label]');
+
+    const btn = createSaveButton();
+  console.debug('x-clipper: created button element');
+
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = '送信中…';
+      try {
+        const payload = collectFromArticle(article);
+        if (!payload) {
+          btn.textContent = 'エラー';
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }, 1500);
+          return;
+        }
+
+        chrome.runtime.sendMessage({ type: 'CLIP_X_POST', data: payload }, (resp) => {
+          if (chrome.runtime.lastError) {
+            console.warn('sendMessage error', chrome.runtime.lastError.message);
+          }
+          if (resp && resp.success) {
+            btn.textContent = '保存済み';
+          } else {
+            btn.textContent = '失敗';
+            console.warn('clip failed', resp);
+          }
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }, 1500);
+        });
+      } catch (err) {
+        console.warn('clip button error', err);
+        btn.textContent = '失敗';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }, 1500);
+      }
+    });
+
+    // Place button to the left of the icon immediately left of the overflow (ellipsis)
+  console.debug('x-clipper: attempting placement');
+    // Strategy: find the rightmost interactive element (likely the ellipsis), then
+    // insert before its previous interactive sibling if present.
+    let placed = false;
+    try {
+      const candidates = Array.from(article.querySelectorAll('button, [role="button"], a')) as Element[];
+      if (candidates.length > 0) {
+        // Measure rightmost position
+        let rightmost: Element | null = null;
+        let maxRight = -Infinity;
+        for (const el of candidates) {
+          try {
+            const rect = el.getBoundingClientRect();
+            if (rect && rect.right > maxRight) {
+              maxRight = rect.right;
+              rightmost = el;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (rightmost && rightmost.parentElement) {
+          // find previous interactive sibling (skip text nodes)
+          let sibling: Element | null = rightmost.previousElementSibling;
+          while (sibling && !/^(BUTTON|A)$/.test(sibling.tagName) && sibling.getAttribute('role') !== 'button') {
+            sibling = sibling.previousElementSibling;
+          }
+
+          const insertBeforeEl = sibling ?? rightmost;
+          if (insertBeforeEl.parentElement) {
+            insertBeforeEl.parentElement.insertBefore(btn, insertBeforeEl);
+            placed = true;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('placement by bounding box failed', err);
+    }
+
+    if (!placed) {
+      console.debug('x-clipper: fallback placement used');
+      if (actionArea) {
+        actionArea.appendChild(btn);
+      } else {
+        const header = article.querySelector('[data-testid="User-Names"], [data-testid="User-Name"]');
+        if (header) header.appendChild(btn);
+        else article.appendChild(btn);
+      }
+    } else {
+      console.debug('x-clipper: placed button successfully');
+    }
+  } catch (err) {
+    console.warn('insertSaveButton failed', err);
+  }
+}
+
+function scanAndInsertButtons(root: ParentNode = document) {
+  const selector = 'article[data-testid="tweet"] , article[data-testid="tweetDetail"]';
+  const articles = Array.from(root.querySelectorAll(selector));
+  console.debug('x-clipper: scanAndInsertButtons found', articles.length, 'articles');
+  articles.forEach((article) => insertSaveButton(article));
+}
+
+// Initial pass
+scanAndInsertButtons();
+
+// Observe for new tweets loaded dynamically
+const observer = new MutationObserver((mutations) => {
+  for (const m of mutations) {
+    if (!m.addedNodes) continue;
+    m.addedNodes.forEach((node) => {
+      console.debug('x-clipper: mutation added node', node);
+      if (!(node instanceof Element)) return;
+      if (node.matches && (node.matches('article[data-testid="tweet"]') || node.matches('article[data-testid="tweetDetail"]'))) {
+        console.debug('x-clipper: mutation node is article, inserting');
+        insertSaveButton(node as Element);
+      } else {
+        // in case articles are nested inside added nodes
+        scanAndInsertButtons(node);
+      }
+    });
+  }
+});
+
+observer.observe(document.body, { childList: true, subtree: true });
+

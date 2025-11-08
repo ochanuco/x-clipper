@@ -36,6 +36,9 @@
   "content_scripts": [
     {
       "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*",
+        "https://x.com/i/bookmarks/*",
         "https://x.com/*/status/*",
         "https://twitter.com/*/status/*"
       ],
