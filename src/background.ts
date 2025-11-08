@@ -620,9 +620,19 @@ function notionRequest(
 
 function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
   const properties: Record<string, unknown> = {};
-  const fallbackTitle = payload.text
-    ? payload.text.slice(0, 100)
-    : `${payload.screenName} (${payload.userName})`;
+  // Build a compact title: remove newlines, normalize whitespace, truncate to 120 chars
+  function buildCompactTitle(text?: string, screenName?: string, userName?: string) {
+    if (text && text.trim()) {
+      // remove newlines and normalize spaces
+      const singleLine = text.replace(/\s+/g, ' ').trim();
+      return singleLine.slice(0, 120);
+    }
+    if (screenName || userName) {
+      return `${screenName ?? ''}${userName ? ` (${userName})` : ''}`.slice(0, 120);
+    }
+    return 'X Clipper';
+  }
+  const fallbackTitle = buildCompactTitle(payload.text, payload.screenName, payload.userName);
 
   const titleKey = map.title?.trim();
   if (titleKey) {
