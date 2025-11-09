@@ -1,6 +1,6 @@
 # X Clipper
 
-[1img](public/icons/x-clipper.svg)
+![](public/icons/x-clipper.svg)
 
 Chrome 拡張機能「X Clipper」は、X（Twitter）の投稿詳細ページから表示名・ユーザー名・本文・投稿時刻・画像を抽出し、Notion の Direct Upload API を利用して直接ページを生成します。投稿画像はブラウザ内で一時保持したのち `file_upload` として Notion ワークスペースに保存されるため、専用バックエンドを運用しなくても元投稿が消えても閲覧できます。
 
