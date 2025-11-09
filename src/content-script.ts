@@ -370,145 +370,57 @@ function insertSaveButton(article: Element) {
     }
   });
 
-  // Placement: bookmark-first, action-area, overflow, bounding-box, fallback
-  console.debug('x-clipper: attempting placement into action area');
+  console.debug('x-clipper: attempting placement');
+  // Strategy: find the rightmost interactive element (likely the ellipsis), then
+  // insert before its previous interactive sibling if present.
   let placed = false;
-
-  const bookmarkSelectors = [
-    '[data-testid="bookmark"]',
-    '[data-testid*="bookmark"]',
-    'button[aria-label="Bookmark"]',
-    'button[aria-label="ブックマーク"]',
-    'button[aria-label*="Bookmark"]',
-    'button[aria-label*="ブックマーク"]',
-    'div[aria-label="Bookmark"]',
-    'div[aria-label="ブックマーク"]',
-    '[aria-label*="Bookmark"]',
-    '[aria-label*="ブックマーク"]',
-    '[title*="Bookmark"]',
-    '[title*="ブックマーク"]'
-  ];
-
-  // 1) bookmark anywhere -> insert before it (preferably inside its action group)
-  let bookmarkEl: Element | null = null;
-  for (const sel of bookmarkSelectors) {
-    bookmarkEl = article.querySelector(sel);
-    if (bookmarkEl) break;
-  }
-  if (bookmarkEl) {
-    const bookmarkBtn = bookmarkEl.closest('button, [role="button"], a') as Element | null;
-    const actionContainer = (bookmarkBtn && bookmarkBtn.closest('[role="group"], [data-testid="tweetAction"], div[aria-label]')) || bookmarkEl.parentElement;
-    if (actionContainer && bookmarkBtn && actionContainer.contains(bookmarkBtn)) {
-      actionContainer.insertBefore(btn, bookmarkBtn);
-      placed = true;
-    } else if (bookmarkEl.parentElement) {
-      bookmarkEl.parentElement.insertBefore(btn, bookmarkEl);
-      placed = true;
-    }
-  }
-
-  // 1.5) Prefer to insert next to the time anchor (timestamp link) if available
-  if (!placed) {
-    try {
-      const timeEl = article.querySelector('time');
-      const timeAnchor = timeEl?.closest('a[href]') as HTMLAnchorElement | null;
-      if (timeAnchor && timeAnchor.parentElement) {
-        // Insert after the timeAnchor so it appears to its right (or adjust via CSS/margin as needed)
-        if (timeAnchor.nextSibling) {
-          timeAnchor.parentElement.insertBefore(btn, timeAnchor.nextSibling);
-        } else {
-          timeAnchor.parentElement.appendChild(btn);
-        }
-        // apply a small left margin to visually separate from the timestamp
-        btn.style.marginLeft = '8px';
-        // shrink marginRight to avoid pushing too far into action icons
-        btn.style.marginRight = '2px';
-        placed = true;
-      }
-    } catch (e) {
-      // ignore and fall back
-    }
-  }
-
-  // 2) action area: try to insert before bookmark-like child or before last child
-  if (!placed && actionArea) {
-    let bookmarkInAction: Element | null = null;
-    for (const sel of bookmarkSelectors) {
-      bookmarkInAction = actionArea.querySelector(sel);
-      if (bookmarkInAction) break;
-    }
-    if (bookmarkInAction) {
-      const bookmarkBtn = (bookmarkInAction.closest('button, [role="button"], a') as Element) || bookmarkInAction;
-      actionArea.insertBefore(btn, bookmarkBtn);
-    } else {
-      const last = actionArea.lastElementChild;
-      if (last && last.parentElement) last.parentElement.insertBefore(btn, last);
-      else actionArea.appendChild(btn);
-    }
-    placed = true;
-  }
-
-  // 3) overflow / rightmost heuristics
-  if (!placed) {
-    const overflowSelectors = [
-      'button[aria-label="More"]', 'div[aria-label="More"]', 'button[aria-label="その他"]', 'div[aria-label="その他"]',
-      'button[aria-haspopup="menu"]', '[data-testid="caret"]', '[data-testid="more"]', '[data-testid="caretDown"]',
-      'div[aria-label*="More"]', 'button[aria-label*="More"]'
-    ];
-    const matches: Element[] = [];
-    for (const sel of overflowSelectors) article.querySelectorAll(sel).forEach((el) => matches.push(el));
-
-    let overflowEl: Element | null = null;
-    let maxRight = -Infinity;
-    for (const el of matches) {
-      try {
-        const r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0 && r.right > maxRight) {
-          maxRight = r.right;
-          overflowEl = el;
-        }
-      } catch {
-        // ignore
-      }
-    }
-    if (overflowEl && overflowEl.parentElement) {
-      overflowEl.parentElement.insertBefore(btn, overflowEl);
-      placed = true;
-    }
-  }
-
-  // 4) bounding-box rightmost button/link
-  if (!placed) {
+  try {
     const candidates = Array.from(article.querySelectorAll('button, [role="button"], a')) as Element[];
     if (candidates.length > 0) {
+      // Measure rightmost position
       let rightmost: Element | null = null;
-      let maxR = -Infinity;
+      let maxRight = -Infinity;
       for (const el of candidates) {
         try {
           const rect = el.getBoundingClientRect();
-          if (rect && rect.right > maxR) {
-            maxR = rect.right;
+          if (rect && rect.right > maxRight) {
+            maxRight = rect.right;
             rightmost = el;
           }
         } catch {
           // ignore
         }
       }
+
       if (rightmost && rightmost.parentElement) {
-        rightmost.parentElement.insertBefore(btn, rightmost);
-        placed = true;
+        // find previous interactive sibling (skip text nodes)
+        let sibling: Element | null = rightmost.previousElementSibling;
+        while (sibling && !/^(BUTTON|A)$/.test(sibling.tagName) && sibling.getAttribute('role') !== 'button') {
+          sibling = sibling.previousElementSibling as Element | null;
+        }
+
+        const insertBeforeEl = sibling ?? rightmost;
+        if (insertBeforeEl.parentElement) {
+          insertBeforeEl.parentElement.insertBefore(btn, insertBeforeEl);
+          placed = true;
+        }
       }
     }
+  } catch (err) {
+    console.warn('placement by bounding box failed', err);
   }
 
-  // final fallback
   if (!placed) {
-    if (actionArea) actionArea.appendChild(btn);
-    else {
+    console.debug('x-clipper: fallback placement used');
+    if (actionArea) {
+      actionArea.appendChild(btn);
+    } else {
       const header = article.querySelector('[data-testid="User-Names"], [data-testid="User-Name"]');
       if (header) header.appendChild(btn);
       else article.appendChild(btn);
     }
+  } else {
+    console.debug('x-clipper: placed button successfully');
   }
 }
 
