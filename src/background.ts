@@ -680,10 +680,12 @@ function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap'])
     const trimmed = text?.trim();
     if (!trimmed) return 'Image';
     const newlineIndex = trimmed.indexOf('\n');
-    if (newlineIndex === -1) {
+    // 改行がある場合はその手前まで
+    if (newlineIndex !== -1) {
       const endIndex = Math.min(newlineIndex, 120);
       return trimmed.slice(0, endIndex) + (endIndex < trimmed.length ? '...' : '');
     }
+    // 改行がない場合は120文字まで
     return trimmed.slice(0, 120) + (trimmed.length > 120 ? '...' : '');
   }
   const fallbackTitle = buildCompactTitle(payload.text);
