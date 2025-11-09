@@ -671,16 +671,23 @@ function notionRequest(
 
 function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
   const properties: Record<string, unknown> = {};
-  const fallbackTitle = payload.text
-    ? payload.text.slice(0, 100)
-    : `${payload.screenName} (${payload.userName})`;
+  function buildCompactTitle(text?: string) {
+    const trimmed = text?.trim();
+    if (!trimmed) return 'Image';
+    const newlineIndex = trimmed.indexOf('\n');
+    if (newlineIndex === -1) {
+      return trimmed.slice(0, Math.min(newlineIndex, 120)) + '...';
+    }
+    return trimmed.slice(0, 120) + '...';
+  }
+  const fallbackTitle = buildCompactTitle(payload.text);
 
   const titleKey = map.title?.trim();
   if (titleKey) {
     properties[titleKey] = {
       title: [
         {
-          text: { content: fallbackTitle || 'X Clipper' }
+          text: { content: fallbackTitle || 'Image' }
         }
       ]
     };
