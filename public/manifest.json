@@ -4,13 +4,17 @@
   "description": "Clip X (Twitter) posts into your Notion workspace with media backups.",
   "version": "0.1.0",
   "icons": {
-    "128": "icons/icon-128.png"
+    "16": "icons/x-clipper-16.png",
+    "48": "icons/x-clipper-48.png",
+    "128": "icons/x-clipper-128.png"
   },
   "options_page": "options.html",
   "action": {
     "default_title": "X Clipper",
     "default_icon": {
-      "128": "icons/icon-128.png"
+      "16": "icons/x-clipper-16.png",
+      "48": "icons/x-clipper-48.png",
+      "128": "icons/x-clipper-128.png"
     }
   },
   "background": {

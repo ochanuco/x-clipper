@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build:icons": "node scripts/convert-icons.mjs",
+    "build": "pnpm run build:icons && node scripts/build.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -13,7 +14,8 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.0.269",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "sharp": "^0.33.0"
   },
   "engines": {
     "node": ">=20"
