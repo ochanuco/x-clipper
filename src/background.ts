@@ -404,6 +404,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         // Attempt to use chrome.downloads if available
         if (chrome.downloads && chrome.downloads.download) {
+          void showNotification('Notion へのアップロードに失敗したため、ファイルをダウンロードします。', true);
           for (const url of urls) {
             try {
               const ext = resolveExtension(url, 'application/octet-stream');
