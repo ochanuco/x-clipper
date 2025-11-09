@@ -621,13 +621,13 @@ function notionRequest(
 function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
   const properties: Record<string, unknown> = {};
   function buildCompactTitle(text?: string) {
-    if (text && text.trim()) {
-      const newlineIndex = text.indexOf('\n');
-      if (newlineIndex !== -1 && newlineIndex < 120) {
-        return text.slice(0, newlineIndex).trim();
-      }
+    const trimmed = text?.trim();
+    if (!trimmed) return 'Image';
+    const newlineIndex = trimmed.indexOf('\n');
+    if (newlineIndex === -1) {
+      return trimmed.slice(0, Math.min(newlineIndex, 120)) + '...';
     }
-    return 'Image';
+    return trimmed.slice(0, 120) + '...';
   }
   const fallbackTitle = buildCompactTitle(payload.text);
 
