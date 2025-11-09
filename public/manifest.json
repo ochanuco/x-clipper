@@ -24,6 +24,9 @@
     "storage",
     "scripting"
   ],
+  "optional_permissions": [
+    "downloads"
+  ],
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
@@ -36,6 +39,8 @@
   "content_scripts": [
     {
       "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*",
         "https://x.com/*/status/*",
         "https://twitter.com/*/status/*"
       ],
