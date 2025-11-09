@@ -320,6 +320,21 @@ function createSaveButton(): HTMLButtonElement {
   return btn;
 }
 
+// Small inline SVGs for success / failure states
+const SUCCESS_SVG = `
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" fill="#10b981" />
+    <path d="M7 12.5l2.5 2.5L17 8" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+`;
+
+const FAILURE_SVG = `
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" fill="#ef4444" />
+    <path d="M15 9L9 15M9 9l6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+`;
+
 function insertSaveButton(article: Element) {
   console.debug('x-clipper: insertSaveButton called for article', article);
   // avoid duplicating
@@ -333,39 +348,46 @@ function insertSaveButton(article: Element) {
   const btn = createSaveButton();
   console.debug('x-clipper: created button element');
 
+  const originalInnerHTML = btn.innerHTML;
   btn.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     btn.disabled = true;
-    const originalText = btn.textContent;
-    btn.textContent = '送信中…';
+    const originalOpacity = btn.style.opacity;
+    btn.style.opacity = '0.5';
     try {
       const payload = collectFromArticle(article);
       if (!payload) {
-        btn.textContent = 'エラー';
+        // show failure icon briefly
+        btn.innerHTML = FAILURE_SVG;
         setTimeout(() => {
           btn.disabled = false;
-          btn.textContent = originalText;
+          btn.innerHTML = originalInnerHTML;
+          btn.style.opacity = originalOpacity;
         }, 1500);
         return;
       }
+
       chrome.runtime.sendMessage({ type: 'CLIP_X_POST', data: payload }, (resp) => {
         if (chrome.runtime.lastError) console.warn('sendMessage error', chrome.runtime.lastError.message);
-        if (resp && resp.success) btn.textContent = '保存済み';
-        else {
-          btn.textContent = '失敗';
+        if (resp && resp.success) {
+          btn.innerHTML = SUCCESS_SVG;
+        } else {
+          btn.innerHTML = FAILURE_SVG;
           console.warn('clip failed', resp);
         }
         setTimeout(() => {
           btn.disabled = false;
-          btn.textContent = originalText;
+          btn.innerHTML = originalInnerHTML;
+          btn.style.opacity = originalOpacity;
         }, 1500);
       });
     } catch (err) {
       console.warn('clip button error', err);
-      btn.textContent = '失敗';
+      btn.innerHTML = FAILURE_SVG;
       setTimeout(() => {
         btn.disabled = false;
-        btn.textContent = originalText;
+        btn.innerHTML = originalInnerHTML;
+        btn.style.opacity = originalOpacity;
       }, 1500);
     }
   });
