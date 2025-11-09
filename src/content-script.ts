@@ -268,6 +268,29 @@ function collectFromArticle(article: Element): ExtractedPost | null {
     return null;
   }
 
+  // Prefer the timestamp's anchor href (unique tweet URL) when available.
+  let postUrl = '';
+  try {
+    const timeAnchor = timeElement?.closest('a[href]') as HTMLAnchorElement | null;
+    if (timeAnchor) {
+      // prefer the literal href attribute when present to preserve relative paths
+      const raw = timeAnchor.getAttribute('href') ?? timeAnchor.href ?? '';
+      try {
+        // convert relative paths to absolute using location.origin
+        postUrl = new URL(raw, window.location.origin).toString();
+      } catch {
+        postUrl = raw || window.location.href;
+      }
+    } else {
+      postUrl =
+        document.querySelector('link[rel="canonical"]')?.getAttribute('href') ?? window.location.href;
+    }
+  } catch {
+    postUrl = window.location.href;
+  }
+
+  console.debug('x-clipper: extracted postUrl', postUrl);
+
   return {
     screenName,
     userName,
@@ -275,7 +298,7 @@ function collectFromArticle(article: Element): ExtractedPost | null {
     timestamp,
     images,
     avatarUrl,
-    url: window.location.href
+    url: postUrl
   };
 }
 
