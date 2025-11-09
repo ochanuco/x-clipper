@@ -622,7 +622,6 @@ function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap'])
   const properties: Record<string, unknown> = {};
   function buildCompactTitle(text?: string) {
     if (text && text.trim()) {
-      // 改行までのテキストまたは120文字までを取得する
       const newlineIndex = text.indexOf('\n');
       if (newlineIndex !== -1 && newlineIndex < 120) {
         return text.slice(0, newlineIndex).trim();
@@ -637,7 +636,7 @@ function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap'])
     properties[titleKey] = {
       title: [
         {
-          text: { content: fallbackTitle || 'X Clipper' }
+          text: { content: fallbackTitle || 'Image' }
         }
       ]
     };
