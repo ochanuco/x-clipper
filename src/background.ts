@@ -258,23 +258,23 @@ async function downloadAsset(url: string, label: string): Promise<DownloadedAsse
   const extension = resolveExtension(url, contentType);
   const fileName = buildFileName(label, extension);
 
-    const asset = {
-      label,
-      sourceUrl: url,
-      blob,
-      fileName,
-      contentType
-    };
+  const asset = {
+    label,
+    sourceUrl: url,
+    blob,
+    fileName,
+    contentType
+  };
 
-    // Save to cache for potential retries / delayed uploads
-    try {
-      // Fire-and-forget; don't block if cache fails
-      void saveToCache({ fileName: asset.fileName, blob: asset.blob, meta: { sourceUrl: url, label } });
-    } catch (err) {
-      console.warn('failed to save asset to cache', err);
-    }
+  // Save to cache for potential retries / delayed uploads
+  try {
+    // Fire-and-forget; don't block if cache fails
+    void saveToCache({ fileName: asset.fileName, blob: asset.blob, meta: { sourceUrl: url, label } });
+  } catch (err) {
+    console.warn('failed to save asset to cache', err);
+  }
 
-    return asset;
+  return asset;
 }
 
 // IndexedDB cache utilities --------------------------------------------------
@@ -387,6 +387,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const settings = await getSettings();
       validateSettings(settings);
       const payload = message.data as XPostPayload;
+      if (!payload || typeof payload !== 'object' || !payload.url) {
+        sendResponse({ success: false, error: 'invalid_payload structure' });
+        return;
+      }
       try {
         await clipPostToNotion(settings, payload);
         sendResponse({ success: true });
@@ -508,13 +512,13 @@ async function uploadAssetToNotion(
         `Notion へのアップロードが完了しませんでした（status: ${uploaded.status}）`
       );
     }
-      // On success, remove cached copy if present
-      try {
-        await deleteFromCache(asset.fileName);
-      } catch (err) {
-        console.warn('failed to delete cached asset after upload', asset.fileName, err);
-      }
-      return uploaded;
+    // On success, remove cached copy if present
+    try {
+      await deleteFromCache(asset.fileName);
+    } catch (err) {
+      console.warn('failed to delete cached asset after upload', asset.fileName, err);
+    }
+    return uploaded;
   } catch (error) {
     console.warn('Notion へのファイルアップロードに失敗しました', asset.fileName, error);
     return null;
