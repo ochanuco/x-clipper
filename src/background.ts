@@ -620,19 +620,17 @@ function notionRequest(
 
 function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
   const properties: Record<string, unknown> = {};
-  // Build a compact title: remove newlines, normalize whitespace, truncate to 120 chars
-  function buildCompactTitle(text?: string, screenName?: string, userName?: string) {
+  function buildCompactTitle(text?: string) {
     if (text && text.trim()) {
-      // remove newlines and normalize spaces
-      const singleLine = text.replace(/\s+/g, ' ').trim();
-      return singleLine.slice(0, 120);
+      // 改行までのテキストまたは120文字までを取得する
+      const newlineIndex = text.indexOf('\n');
+      if (newlineIndex !== -1 && newlineIndex < 120) {
+        return text.slice(0, newlineIndex).trim();
+      }
     }
-    if (screenName || userName) {
-      return `${screenName ?? ''}${userName ? ` (${userName})` : ''}`.slice(0, 120);
-    }
-    return 'X Clipper';
+    return 'Image';
   }
-  const fallbackTitle = buildCompactTitle(payload.text, payload.screenName, payload.userName);
+  const fallbackTitle = buildCompactTitle(payload.text);
 
   const titleKey = map.title?.trim();
   if (titleKey) {
