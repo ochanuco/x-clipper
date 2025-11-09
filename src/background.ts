@@ -681,9 +681,10 @@ function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap'])
     if (!trimmed) return 'Image';
     const newlineIndex = trimmed.indexOf('\n');
     if (newlineIndex === -1) {
-      return trimmed.slice(0, Math.min(newlineIndex, 120)) + '...';
+      const endIndex = Math.min(newlineIndex, 120);
+      return trimmed.slice(0, endIndex) + (endIndex < trimmed.length ? '...' : '');
     }
-    return trimmed.slice(0, 120) + '...';
+    return trimmed.slice(0, 120) + (trimmed.length > 120 ? '...' : '');
   }
   const fallbackTitle = buildCompactTitle(payload.text);
 
