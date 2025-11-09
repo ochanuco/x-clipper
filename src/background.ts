@@ -387,7 +387,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const settings = await getSettings();
       validateSettings(settings);
       const payload = message.data as XPostPayload;
-      if (!payload || typeof payload !== 'object' || !payload.url) {
+      if (!payload || typeof payload !== 'object' || !payload.url || !Array.isArray(payload.images)) {
         sendResponse({ success: false, error: 'invalid_payload structure' });
         return;
       }
