@@ -2,7 +2,10 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 
 import { expect, repoRoot, test } from './fixtures/extension.js';
+import { serveOfflineTweet } from './helpers/network.js';
+import { getNotionPages, mockNotionApi } from './helpers/notion.js';
 import { seedSettings } from './helpers/storage.js';
+import { keepServiceWorkerAlive } from './helpers/worker.js';
 
 const fixturesRoot = path.join(repoRoot, 'tests/e2e/fixtures');
 const tweetHtml = readFileSync(path.join(fixturesRoot, 'html/offline-tweet.html'), 'utf-8');
@@ -26,108 +29,9 @@ test.describe('オフラインMV3クリッピング', () => {
   test('保存済みツイートをNotionに連携できる', async ({ page, context, extensionWorker, extensionId }) => {
     await seedSettings(extensionWorker, notionSettings);
 
-    const avatarBase64 = avatarBuffer.toString('base64');
-    const mediaBase64 = mediaBuffer.toString('base64');
-
-    const keepAlivePage = await context.newPage();
-    await keepAlivePage.goto(`chrome-extension://${extensionId}/options.html#e2e-keep-alive`);
-    await keepAlivePage.evaluate(() => {
-      if (!(globalThis as Record<string, unknown>).__xClipperKeepAlivePort) {
-        (globalThis as Record<string, unknown>).__xClipperKeepAlivePort = chrome.runtime.connect({ name: 'x-clipper-e2e-keep-alive' });
-      }
-    });
-
-    await extensionWorker.evaluate(
-      ({ avatarBase64, mediaBase64 }) => {
-        const decode = (value: string) => Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
-        const avatarBlob = new Blob([decode(avatarBase64)], { type: 'image/png' });
-        const mediaBlob = new Blob([decode(mediaBase64)], { type: 'image/png' });
-
-        const notionPages: Array<Record<string, unknown>> = [];
-        (globalThis as Record<string, unknown>).__xClipperNotionPages = notionPages;
-
-        const jsonResponse = (body: Record<string, unknown>) =>
-          new Response(JSON.stringify(body), {
-            status: 200,
-            headers: { 'content-type': 'application/json' }
-          });
-
-        const originalFetch = fetch.bind(globalThis);
-        globalThis.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
-          try {
-            const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-            const method = (init.method ?? 'GET').toUpperCase();
-
-            if (!url) {
-              return originalFetch(input, init);
-            }
-
-            if (url.startsWith('https://pbs.twimg.com/profile_images')) {
-              return new Response(avatarBlob.slice(), {
-                status: 200,
-                headers: { 'content-type': 'image/png' }
-              });
-            }
-
-            if (url.startsWith('https://pbs.twimg.com/media')) {
-              return new Response(mediaBlob.slice(), {
-                status: 200,
-                headers: { 'content-type': 'image/png' }
-              });
-            }
-
-            if (url === 'https://api.notion.com/v1/file_uploads' && method === 'POST') {
-              return jsonResponse({ id: `upload_${Date.now()}` });
-            }
-
-            const sendMatch = url.match(/^https:\/\/api\.notion\.com\/v1\/file_uploads\/([^/]+)\/send$/);
-            if (sendMatch && method === 'POST') {
-              const uploadId = sendMatch[1];
-              return jsonResponse({
-                id: uploadId,
-                status: 'uploaded',
-                filename: `${uploadId}.png`,
-                content_type: 'image/png'
-              });
-            }
-
-            if (url === 'https://api.notion.com/v1/pages' && method === 'POST') {
-              let parsed: Record<string, unknown> = {};
-              if (typeof init.body === 'string') {
-                try {
-                  parsed = JSON.parse(init.body);
-                } catch {
-                  parsed = {};
-                }
-              }
-              notionPages.push(parsed);
-              return jsonResponse({ id: 'mock-page-id' });
-            }
-          } catch (error) {
-            console.warn('mock fetch error', error);
-          }
-          return originalFetch(input, init);
-        };
-      },
-      { avatarBase64, mediaBase64 }
-    );
-
-    await context.route('https://x.com/**', (route) =>
-      route.fulfill({
-        status: 200,
-        body: tweetHtml,
-        headers: { 'content-type': 'text/html; charset=utf-8' }
-      })
-    );
-
-    await context.route('https://pbs.twimg.com/**', (route) => {
-      const body = route.request().url().includes('profile_images') ? avatarBuffer : mediaBuffer;
-      return route.fulfill({
-        status: 200,
-        body,
-        headers: { 'content-type': 'image/png' }
-      });
-    });
+    const keepAlivePage = await keepServiceWorkerAlive(context, extensionId);
+    await mockNotionApi(extensionWorker);
+    await serveOfflineTweet(context, { tweetHtml, avatarBuffer, mediaBuffer });
 
     await page.goto('https://x.com/alice_dev/status/1234567890');
 
@@ -136,22 +40,16 @@ test.describe('オフラインMV3クリッピング', () => {
 
     await clipButton.click();
 
-    await expect.poll(
-      async () =>
-        extensionWorker.evaluate(() => {
-          const pages = (globalThis as Record<string, unknown>).__xClipperNotionPages as Array<Record<string, unknown>> | undefined;
-          return pages?.length ?? 0;
-        }),
-      { timeout: 10000 }
-    ).toBe(1);
+    await expect
+      .poll(async () => (await getNotionPages(extensionWorker)).length, { timeout: 10000 })
+      .toBe(1);
 
-    const payload = (await extensionWorker.evaluate(() => {
-      const pages = (globalThis as Record<string, unknown>).__xClipperNotionPages as Array<Record<string, unknown>> | undefined;
-      return pages?.[0] ?? null;
-    })) as Record<string, any> | null;
-
-    expect(payload).not.toBeNull();
-    const notionPayload = payload as Record<string, any>;
+    const notionPages = await getNotionPages(extensionWorker);
+    const notionPayload = notionPages[0] as Record<string, any> | undefined;
+    expect(notionPayload).toBeDefined();
+    if (!notionPayload) {
+      throw new Error('Notion payload was not captured');
+    }
 
     expect(notionPayload.parent.database_id).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
     expect(notionPayload.properties['Name'].title[0].text.content).toContain('Playwright E2E');
