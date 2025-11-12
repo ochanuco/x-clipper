@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Offline Tweet Fixture</title>
+    <meta property="og:title" content="Alice Example (@alice_dev) / X" />
+    <meta name="twitter:creator" content="@alice_dev" />
+    <link rel="canonical" href="https://x.com/alice_dev/status/1234567890" />
+    <style>
+      body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+      }
+      article {
+        border: 1px solid #d1d5db;
+        border-radius: 12px;
+        padding: 16px;
+        margin: 32px auto;
+        max-width: 480px;
+      }
+      [role='group'] {
+        display: flex;
+        justify-content: flex-end;
+      }
+    </style>
+  </head>
+  <body>
+    <article data-testid="tweet">
+      <div data-testid="User-Names">
+        <div dir="auto">
+          <span>Alice Example</span>
+        </div>
+        <div dir="auto">
+          <a href="/alice_dev"><span>@alice_dev</span></a>
+        </div>
+      </div>
+      <div data-testid="tweetText">
+        <span>Playwright E2E validates the offline clipping happy path 🎯</span>
+      </div>
+      <a href="/alice_dev/status/1234567890">
+        <time datetime="2024-05-04T12:34:56.000Z">12:34 PM · May 4, 2024</time>
+      </a>
+      <div data-testid="Tweet-User-Avatar">
+        <img
+          alt="avatar"
+          src="https://pbs.twimg.com/profile_images/offline-avatar_small.png"
+          srcset="
+            https://pbs.twimg.com/profile_images/offline-avatar_small.png 64w,
+            https://pbs.twimg.com/profile_images/offline-avatar.png?name=orig 128w
+          "
+        />
+      </div>
+      <div data-testid="tweetPhoto">
+        <img
+          alt="tweet photo"
+          src="https://pbs.twimg.com/media/offline-media_small.png"
+          srcset="
+            https://pbs.twimg.com/media/offline-media_small.png 680w,
+            https://pbs.twimg.com/media/offline-media.png?name=orig 2048w
+          "
+        />
+      </div>
+      <div role="group" aria-label="Actions">
+        <button aria-label="More actions">•••</button>
+      </div>
+    </article>
+  </body>
+</html>

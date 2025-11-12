@@ -5,3 +5,5 @@ dist
 server/.env
 server/uploads/*
 !server/uploads/.gitkeep
+.playwright-output
+test-results/

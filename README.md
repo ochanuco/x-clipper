@@ -41,6 +41,14 @@ pnpm run build
 ## 仕組み
 - 拡張機能のサービスワーカーが X 画像 CDN（`*.twimg.com` など）から画像を取得し、ブラウザメモリに保持します。
 - Notion Direct Upload API でファイルをアップロードした後にページを作成し、アップロード ID を `file_upload` として添付します。添付はアップロード後 1 時間以内に実施する必要があるため、処理は即座に完結します。
+
+## E2E テスト（オフライン）
+- Playwright で MV3 拡張を読み込み、保存済みの X HTML とモック済み Notion API で最小ハッピーパスを検証します。
+- 依存ブラウザの初回セットアップ: `pnpm exec playwright install chromium`
+- 実行コマンド: `pnpm run test:e2e`
+  - コマンド内で `pnpm run build` → `playwright test -c tests/e2e/playwright.config.ts` を順に実行します。
+  - 失敗時は `.playwright-output/` にスクリーンショット・動画・trace が保存されます。
+
 ## 開発メモ
 - TypeScript を使用し、ビルドは `pnpm exec tsc` で行います。
-- 自動テストは未整備です。Jest + MSW などで拡張側のテストを追加する余地があります。
+- Notion API・X CDN にアクセスせずに検証できる Playwright E2E を `tests/e2e` 以下に追加しました。
