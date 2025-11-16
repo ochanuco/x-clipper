@@ -607,8 +607,8 @@ async function createNotionPage({
 }) {
   const requestBody = {
     parent: { database_id: databaseId },
-    icon: buildIconFromAsset(avatarAsset),
-    cover: buildCoverFromAsset(mediaAssets[0]),
+    icon: buildIconFromAsset(avatarAsset, payload.avatarUrl),
+    cover: buildCoverFromAsset(mediaAssets[0], payload.images?.[0]),
     properties,
     children: buildChildren(payload, mediaAssets)
   };
@@ -762,12 +762,52 @@ function buildChildren(payload: XPostPayload, mediaAssets: DownloadedAsset[]) {
     });
   }
 
+  const assetMap = new Map(
+    mediaAssets.map((asset) => [asset.sourceUrl, asset])
+  );
+  const usedSources = new Set<string>();
+
+  if (Array.isArray(payload.images) && payload.images.length > 0) {
+    // keep Notion children aligned with the extracted order, falling back to external URLs if downloads failed
+    for (const originalUrl of payload.images) {
+      if (!originalUrl) continue;
+      const asset = assetMap.get(originalUrl);
+      if (asset) {
+        usedSources.add(asset.sourceUrl);
+        children.push({
+          object: 'block',
+          type: 'image',
+          image: buildNotionFileSource(asset)
+        });
+      } else {
+        children.push({
+          object: 'block',
+          type: 'image',
+          image: {
+            type: 'external',
+            external: { url: originalUrl }
+          }
+        });
+      }
+    }
+  } else {
+    for (const asset of mediaAssets) {
+      children.push({
+        object: 'block',
+        type: 'image',
+        image: buildNotionFileSource(asset)
+      });
+      usedSources.add(asset.sourceUrl);
+    }
+  }
+
+  // include any downloaded assets that were not part of payload.images (edge cases)
   for (const asset of mediaAssets) {
-    const imageSource = buildNotionFileSource(asset);
+    if (usedSources.has(asset.sourceUrl)) continue;
     children.push({
       object: 'block',
       type: 'image',
-      image: imageSource
+      image: buildNotionFileSource(asset)
     });
   }
 
@@ -791,20 +831,46 @@ function buildNotionFileSource(asset: DownloadedAsset) {
   };
 }
 
-function buildIconFromAsset(asset: DownloadedAsset | null | undefined) {
-  if (!asset) {
-    return undefined;
+function buildIconFromAsset(
+  asset: DownloadedAsset | null | undefined,
+  fallbackUrl?: string | null
+) {
+  if (asset) {
+    const source = buildNotionFileSource(asset);
+    if (source) {
+      return source;
+    }
   }
-  const source = buildNotionFileSource(asset);
-  return source ?? undefined;
+  if (fallbackUrl) {
+    return {
+      type: 'external',
+      external: {
+        url: fallbackUrl
+      }
+    };
+  }
+  return undefined;
 }
 
-function buildCoverFromAsset(asset: DownloadedAsset | null | undefined) {
-  if (!asset) {
-    return undefined;
+function buildCoverFromAsset(
+  asset: DownloadedAsset | null | undefined,
+  fallbackUrl?: string | null
+) {
+  if (asset) {
+    const source = buildNotionFileSource(asset);
+    if (source) {
+      return source;
+    }
   }
-  const source = buildNotionFileSource(asset);
-  return source ?? undefined;
+  if (fallbackUrl) {
+    return {
+      type: 'external',
+      external: {
+        url: fallbackUrl
+      }
+    };
+  }
+  return undefined;
 }
 
 function resolveExtension(url: string, contentType: string) {
