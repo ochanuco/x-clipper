@@ -23,3 +23,19 @@ export interface XPostPayload {
   url: string;
   propertyMap?: NotionPropertyMap;
 }
+
+export interface NotionFileUpload {
+  id: string;
+  status?: string;
+  filename?: string | null;
+  content_type?: string | null;
+}
+
+export interface DownloadedAsset {
+  label: string;
+  sourceUrl: string;
+  blob: Blob;
+  fileName: string;
+  contentType: string;
+  notionFileUpload?: NotionFileUpload;
+}
