@@ -7,9 +7,7 @@ on:
 jobs:
   test:
     timeout-minutes: 60
-    runs-on: ubuntu-latest
-    container:
-      image: ubuntu:slim
+    runs-on: ubuntu-slim
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
