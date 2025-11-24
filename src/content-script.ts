@@ -345,25 +345,47 @@ function insertSaveButton(article: Element) {
     article.querySelector('[data-testid="tweetAction"]') ??
     article.querySelector('div[aria-label]');
 
+  // Inject styles for rotation if not already present
+  if (!document.getElementById('x-clipper-styles')) {
+    const style = document.createElement('style');
+    style.id = 'x-clipper-styles';
+    style.textContent = `
+      @keyframes x-clipper-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .x-clipper-spin {
+        animation: x-clipper-spin 1s linear infinite;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   const btn = createSaveButton();
   console.debug('x-clipper: created button element');
+
+  const LOADING_SVG = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="x-clipper-spin">
+      <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke-opacity="0.2" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 2C6.47715 2 2 6.47715 2 12" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `;
 
   const originalInnerHTML = btn.innerHTML;
   btn.addEventListener('click', async (ev) => {
     ev.stopPropagation();
     btn.disabled = true;
     const originalOpacity = btn.style.opacity;
-    btn.style.opacity = '0.5';
+    btn.style.opacity = '0.8'; // Slightly dim but keep visible
+    btn.innerHTML = LOADING_SVG;
+
     try {
       const payload = collectFromArticle(article);
       if (!payload) {
-        // show failure icon briefly
+        // show failure icon
         btn.innerHTML = FAILURE_SVG;
-        setTimeout(() => {
-          btn.disabled = false;
-          btn.innerHTML = originalInnerHTML;
-          btn.style.opacity = originalOpacity;
-        }, 1500);
+        btn.disabled = false; // Allow retry
+        btn.style.opacity = originalOpacity;
         return;
       }
 
@@ -371,24 +393,20 @@ function insertSaveButton(article: Element) {
         if (chrome.runtime.lastError) console.warn('sendMessage error', chrome.runtime.lastError.message);
         if (resp && resp.success) {
           btn.innerHTML = SUCCESS_SVG;
+          btn.disabled = true; // Prevent duplicate saves
+          btn.style.opacity = '1'; // Full opacity for success
         } else {
           btn.innerHTML = FAILURE_SVG;
           console.warn('clip failed', resp);
-        }
-        setTimeout(() => {
-          btn.disabled = false;
-          btn.innerHTML = originalInnerHTML;
+          btn.disabled = false; // Allow retry
           btn.style.opacity = originalOpacity;
-        }, 1500);
+        }
       });
     } catch (err) {
       console.warn('clip button error', err);
       btn.innerHTML = FAILURE_SVG;
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.innerHTML = originalInnerHTML;
-        btn.style.opacity = originalOpacity;
-      }, 1500);
+      btn.disabled = false; // Allow retry
+      btn.style.opacity = originalOpacity;
     }
   });
 
