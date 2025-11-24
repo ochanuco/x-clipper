@@ -13,16 +13,6 @@ export interface AppSettings {
   propertyMap: NotionPropertyMap;
 }
 
-export interface XPostPayload {
-  screenName: string;
-  userName: string;
-  text: string;
-  timestamp: string;
-  images: string[];
-  avatarUrl: string | null;
-  url: string;
-  propertyMap?: NotionPropertyMap;
-}
 
 export interface NotionFileUpload {
   id: string;

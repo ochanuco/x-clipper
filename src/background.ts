@@ -1,5 +1,6 @@
 import { getSettings } from './settings.js';
-import type { AppSettings, XPostPayload, DownloadedAsset } from './types.js';
+import type { AppSettings, DownloadedAsset } from './types.js';
+import type { XPostPayload } from './domain/x/types.js';
 import { downloadAsset } from './services/downloader.js';
 import { uploadAssetToNotion, createNotionPage, buildProperties } from './domain/notion/client.js';
 import { getFromCache, cleanupExpiredCache } from './domain/storage/cache.js';

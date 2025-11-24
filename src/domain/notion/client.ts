@@ -1,4 +1,5 @@
-import type { AppSettings, XPostPayload, DownloadedAsset, NotionFileUpload } from '../../types.js';
+import type { AppSettings, DownloadedAsset, NotionFileUpload } from '../../types.js';
+import type { XPostPayload } from '../x/types.js';
 import { deleteFromCache } from '../storage/cache.js';
 
 const NOTION_API_URL = 'https://api.notion.com/v1';
@@ -371,7 +372,13 @@ export async function createNotionPage({
         console.error('Notion /pages response error', { status: response.status, body: detail });
 
         // Throw specific errors for the caller to handle (e.g. show notification)
-        const parsed = JSON.parse(detail || '{}');
+        let parsed: any = {};
+        try {
+            parsed = detail ? JSON.parse(detail) : {};
+        } catch {
+            // If detail is not valid JSON (e.g., HTML error page), treat as empty object
+            parsed = {};
+        }
         if (response.status === 404 || parsed?.code === 'object_not_found') {
             throw new Error('Notion のデータベースが見つかりません。データベースを integration に共有しているか確認してください。');
         } else if (response.status === 401 || response.status === 403) {
