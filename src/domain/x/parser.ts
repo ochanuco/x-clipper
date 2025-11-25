@@ -1,4 +1,4 @@
-import { XPostPayload } from './types.js';
+import type { XPostPayload } from './types.js';
 
 const MAX_IMAGES = 4;
 

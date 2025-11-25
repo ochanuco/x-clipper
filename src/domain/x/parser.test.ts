@@ -61,13 +61,16 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = dom.window.document;
-    global.document = document as any;
-    global.window = dom.window as any;
+    globalThis.document = document;
+    globalThis.window = dom.window as unknown as Window & typeof globalThis;
   });
 
   it('should extract post data from article', () => {
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
+
+    expect(result).not.toBeNull();
+    if (!result) return;
 
     expect(result.screenName).toBe('Test User');
     expect(result.userName).toBe('@testuser');
