@@ -3,10 +3,12 @@ name: Playwright Tests
 on:
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'AGENTS.md'
 
 jobs:
   test:
-    timeout-minutes: 60
     runs-on: ubuntu-slim
     steps:
     - name: Install basic dependencies
