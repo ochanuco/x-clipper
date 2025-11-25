@@ -10,8 +10,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["chrome"],
+    "types": ["chrome", "node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts"]
+  "files": ["src/types.d.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts"]
 }
