@@ -2,6 +2,9 @@ name: Unit Tests
 
 on:
   pull_request:
+    paths-ignore:
+      - 'README.md'
+      - 'AGENTS.md'
 
 jobs:
   test:

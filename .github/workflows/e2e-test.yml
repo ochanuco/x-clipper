@@ -3,6 +3,9 @@ name: Playwright Tests
 on:
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'AGENTS.md'
 
 jobs:
   test:
