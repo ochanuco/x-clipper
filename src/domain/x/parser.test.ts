@@ -77,16 +77,10 @@ describe('collectFromArticle', () => {
         expect(result.images[0]).toContain('name=orig');
     });
 
-    it('should return result with default values if article structure is missing', () => {
+    it('should return null when tweet content markers are missing', () => {
         const fakeArticle = document.createElement('div');
         const result = collectFromArticle(fakeArticle);
 
-        expect(result.screenName).toBe('');
-        expect(result.userName).toBe('');
-        expect(result.text).toBe('');
-        expect(result.timestamp).toBe('');
-        expect(result.images).toHaveLength(0);
-        expect(result.avatarUrl).toBeNull();
-        expect(result.url).toBe(window.location.href);
+        expect(result).toBeNull();
     });
 });

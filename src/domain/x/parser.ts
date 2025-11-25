@@ -144,7 +144,14 @@ function collectMediaUrls(article: Element, avatarUrl: string | null) {
     return Array.from(urls).slice(0, MAX_IMAGES);
 }
 
-export function collectFromArticle(article: Element): XPostPayload {
+export function collectFromArticle(article: Element): XPostPayload | null {
+    const hasTweetContent = Boolean(
+        article.querySelector(
+            '[data-testid="User-Names"], [data-testid="User-Name"], div[data-testid="tweetText"], time, [data-testid="tweetPhoto"], [data-testid="previewImage"], [data-testid="card.previewImage"], [data-testid="videoPlayer"], video[data-testid="tweetGifPlayerVideo"]'
+        )
+    );
+    if (!hasTweetContent) return null;
+
     let screenName = '';
     let userName = '';
     const namesRoot = article.querySelector('[data-testid="User-Names"], [data-testid="User-Name"]');
