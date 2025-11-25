@@ -69,20 +69,24 @@ describe('collectFromArticle', () => {
         const article = document.querySelector('article[data-testid="tweet"]')!;
         const result = collectFromArticle(article);
 
-        expect(result).not.toBeNull();
-        expect(result?.screenName).toBe('Test User');
-        expect(result?.userName).toBe('@testuser');
-        expect(result?.text).toBe('This is a test tweet');
-        expect(result?.timestamp).toBe('2025-11-24T12:00:00.000Z');
-        expect(result?.images).toHaveLength(1);
-        expect(result?.images[0]).toContain('name=orig');
+        expect(result.screenName).toBe('Test User');
+        expect(result.userName).toBe('@testuser');
+        expect(result.text).toBe('This is a test tweet');
+        expect(result.timestamp).toBe('2025-11-24T12:00:00.000Z');
+        expect(result.images).toHaveLength(1);
+        expect(result.images[0]).toContain('name=orig');
     });
 
-    it('should return null if article is not found', () => {
+    it('should return result with default values if article structure is missing', () => {
         const fakeArticle = document.createElement('div');
         const result = collectFromArticle(fakeArticle);
 
-        // Should still return a result, but with empty/default values
-        expect(result).not.toBeNull();
+        expect(result.screenName).toBe('');
+        expect(result.userName).toBe('');
+        expect(result.text).toBe('');
+        expect(result.timestamp).toBe('');
+        expect(result.images).toHaveLength(0);
+        expect(result.avatarUrl).toBeNull();
+        expect(result.url).toBe(window.location.href);
     });
 });

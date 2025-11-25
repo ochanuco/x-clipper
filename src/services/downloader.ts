@@ -14,7 +14,8 @@ export async function downloadAsset(url: string, label: string): Promise<Downloa
     const blob = await response.blob();
     if (blob.size > MAX_DIRECT_UPLOAD_BYTES) {
         console.warn(
-            `画像サイズが 20MB を超えています (${(blob.size / 1048576).toFixed(2)}MB)。アップロードをスキップします。`
+            `画像サイズが 20MB を超えています (${(blob.size / 1048576).toFixed(2)}MB)。` +
+                'Notion の制限でアップロードに失敗する可能性があります。'
         );
     }
     const contentType =
@@ -30,13 +31,10 @@ export async function downloadAsset(url: string, label: string): Promise<Downloa
         contentType
     };
 
-    // Save to cache for potential retries / delayed uploads
-    try {
-        // Fire-and-forget; don't block if cache fails
-        void saveToCache({ fileName: asset.fileName, blob: asset.blob, meta: { sourceUrl: url, label } });
-    } catch (err) {
+    // Save to cache for potential retries / delayed uploads (fire-and-forget)
+    void saveToCache({ fileName: asset.fileName, blob: asset.blob, meta: { sourceUrl: url, label } }).catch((err) => {
         console.warn('failed to save asset to cache', err);
-    }
+    });
 
     return asset;
 }

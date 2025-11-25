@@ -89,13 +89,6 @@ export function insertSaveButton(article: Element) {
 
         try {
             const payload = collectFromArticle(article);
-            if (!payload) {
-                // show failure icon
-                btn.innerHTML = FAILURE_SVG;
-                btn.disabled = false; // Allow retry
-                btn.style.opacity = originalOpacity;
-                return;
-            }
 
             chrome.runtime.sendMessage({ type: 'CLIP_X_POST', data: payload }, (resp) => {
                 if (chrome.runtime.lastError) console.warn('sendMessage error', chrome.runtime.lastError.message);

@@ -144,7 +144,7 @@ function collectMediaUrls(article: Element, avatarUrl: string | null) {
     return Array.from(urls).slice(0, MAX_IMAGES);
 }
 
-export function collectFromArticle(article: Element): XPostPayload | null {
+export function collectFromArticle(article: Element): XPostPayload {
     let screenName = '';
     let userName = '';
     const namesRoot = article.querySelector('[data-testid="User-Names"], [data-testid="User-Name"]');
