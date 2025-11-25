@@ -215,22 +215,14 @@ async function clipPostToNotion(
     })
   );
 
-  try {
-    await createNotionPage({
-      settings,
-      databaseId,
-      payload: post,
-      properties: buildProperties(post, propertyNames),
-      avatarAsset,
-      mediaAssets
-    });
-  } catch (error) {
-    // Show user-friendly notification for specific errors
-    if (error instanceof Error) {
-      await showNotification(error.message, true);
-    }
-    throw error;
-  }
+  await createNotionPage({
+    settings,
+    databaseId,
+    payload: post,
+    properties: buildProperties(post, propertyNames),
+    avatarAsset,
+    mediaAssets
+  });
 }
 
 // Handle messages from options page for reuploading cached assets
