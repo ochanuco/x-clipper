@@ -90,6 +90,14 @@ export function insertSaveButton(article: Element) {
         try {
             const payload = collectFromArticle(article);
 
+            if (!payload) {
+                console.warn('x-clipper: skipping clip because tweet content is missing');
+                btn.innerHTML = FAILURE_SVG;
+                btn.disabled = false;
+                btn.style.opacity = originalOpacity;
+                return;
+            }
+
             chrome.runtime.sendMessage({ type: 'CLIP_X_POST', data: payload }, (resp) => {
                 if (chrome.runtime.lastError) console.warn('sendMessage error', chrome.runtime.lastError.message);
                 if (resp && resp.success) {
