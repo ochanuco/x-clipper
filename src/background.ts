@@ -329,11 +329,15 @@ try {
   chrome.alarms.create('xclip-cache-cleanup', { periodInMinutes: 24 * 60 });
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'xclip-cache-cleanup') {
-      void cleanupExpiredCache(DEFAULT_CACHE_TTL_MS).then((deleted) => {
-        if (deleted > 0) {
-          console.log(`x-clipper: cleaned up ${deleted} cached assets`);
-        }
-      });
+      void cleanupExpiredCache(DEFAULT_CACHE_TTL_MS)
+        .then((deleted) => {
+          if (deleted > 0) {
+            console.log(`x-clipper: cleaned up ${deleted} cached assets`);
+          }
+        })
+        .catch((err) => {
+          console.warn('x-clipper: scheduled cache cleanup failed', err);
+        });
     }
   });
 } catch (err) {
