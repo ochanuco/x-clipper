@@ -192,7 +192,7 @@ export function collectFromArticle(article: Element): XPostPayload | null {
     const timeElement = article.querySelector('time');
     const timestamp = timeElement?.getAttribute('datetime') ?? '';
 
-    const avatarElement = (article.querySelector('[data-testid="Tweet-User-Avatar"] img') as HTMLImageElement | null) ?? (document.querySelector('[data-testid="Tweet-User-Avatar"] img') as HTMLImageElement | null);
+    const avatarElement = article.querySelector('[data-testid="Tweet-User-Avatar"] img') as HTMLImageElement | null;
     const avatarUrl = avatarElement ? normalizeImageUrl(bestImageUrl(avatarElement)) : null;
 
     const images = collectMediaUrls(article, avatarUrl);
