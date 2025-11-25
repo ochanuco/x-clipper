@@ -6,7 +6,6 @@ on:
 
 jobs:
   test:
-    timeout-minutes: 60
     runs-on: ubuntu-slim
     steps:
     - name: Install basic dependencies
