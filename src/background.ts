@@ -59,7 +59,10 @@ async function handleClip(tab?: chrome.tabs.Tab) {
     } else if (typeof error === 'string') {
       message = error;
     }
-    await showNotification(message, true);
+
+    if (!(error instanceof AlreadyNotifiedError)) {
+      await showNotification(message, true);
+    }
   }
 }
 
@@ -113,6 +116,14 @@ class ExtractionError extends Error {
     message: string,
     public readonly reason: 'NO_RECEIVER' | 'UNKNOWN'
   ) {
+    super(message);
+  }
+}
+
+class AlreadyNotifiedError extends Error {
+  public readonly alreadyNotified = true;
+
+  constructor(message: string, public readonly cause?: unknown) {
     super(message);
   }
 }
@@ -215,14 +226,21 @@ async function clipPostToNotion(
     })
   );
 
-  await createNotionPage({
-    settings,
-    databaseId,
-    payload: post,
-    properties: buildProperties(post, propertyNames),
-    avatarAsset,
-    mediaAssets
-  });
+  try {
+    await createNotionPage({
+      settings,
+      databaseId,
+      payload: post,
+      properties: buildProperties(post, propertyNames),
+      avatarAsset,
+      mediaAssets
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Notion への保存中にエラーが発生しました。';
+    await showNotification(message, true);
+    throw new AlreadyNotifiedError(message, error);
+  }
 }
 
 // Handle messages from options page for reuploading cached assets
