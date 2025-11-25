@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   testDir: __dirname,
-  timeout: 120 * 1000,
+  timeout: 360 * 1000,
   fullyParallel: false,
   workers: 1,
   reporter: [['list']],

@@ -1,8 +1,13 @@
 import { getSettings } from './settings.js';
-import type { AppSettings, XPostPayload } from './types.js';
+import type { AppSettings, DownloadedAsset } from './types.js';
+import type { XPostPayload } from './domain/x/types.js';
+import { downloadAsset } from './services/downloader.js';
+import { uploadAssetToNotion, createNotionPage, buildProperties } from './domain/notion/client.js';
+import { getFromCache, cleanupExpiredCache } from './domain/storage/cache.js';
 
 const CONTEXT_MENU_ID = 'x-clipper-x-post';
 const NOTIFICATION_ICON_PATH = 'icons/icon-128.png';
+const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
@@ -54,7 +59,10 @@ async function handleClip(tab?: chrome.tabs.Tab) {
     } else if (typeof error === 'string') {
       message = error;
     }
-    await showNotification(message, true);
+
+    if (!(error instanceof AlreadyNotifiedError)) {
+      await showNotification(message, true);
+    }
   }
 }
 
@@ -108,6 +116,14 @@ class ExtractionError extends Error {
     message: string,
     public readonly reason: 'NO_RECEIVER' | 'UNKNOWN'
   ) {
+    super(message);
+  }
+}
+
+class AlreadyNotifiedError extends Error {
+  public readonly alreadyNotified = true;
+
+  constructor(message: string, public readonly cause?: unknown) {
     super(message);
   }
 }
@@ -210,137 +226,21 @@ async function clipPostToNotion(
     })
   );
 
-  await createNotionPage({
-    settings,
-    databaseId,
-    payload: post,
-    properties: buildProperties(post, propertyNames),
-    avatarAsset,
-    mediaAssets
-  });
-}
-
-type DownloadedAsset = {
-  label: string;
-  sourceUrl: string;
-  blob: Blob;
-  fileName: string;
-  contentType: string;
-  notionFileUpload?: NotionFileUpload;
-};
-
-type NotionFileUpload = {
-  id: string;
-  status?: string;
-  filename?: string | null;
-  content_type?: string | null;
-};
-
-const NOTION_API_URL = 'https://api.notion.com/v1';
-const MAX_DIRECT_UPLOAD_BYTES = 20 * 1024 * 1024;
-
-async function downloadAsset(url: string, label: string): Promise<DownloadedAsset> {
-  if (!url) {
-    throw new Error('URL が空です');
-  }
-  const response = await fetch(url, { credentials: 'omit' });
-  if (!response.ok) {
-    throw new Error(`画像の取得に失敗しました（HTTP ${response.status}）`);
-  }
-  const blob = await response.blob();
-  if (blob.size > MAX_DIRECT_UPLOAD_BYTES) {
-    console.warn(
-      `画像サイズが 20MB を超えています (${(blob.size / 1048576).toFixed(2)}MB)。アップロードをスキップします。`
-    );
-  }
-  const contentType =
-    response.headers.get('content-type') ?? blob.type ?? 'application/octet-stream';
-  const extension = resolveExtension(url, contentType);
-  const fileName = buildFileName(label, extension);
-
-  const asset = {
-    label,
-    sourceUrl: url,
-    blob,
-    fileName,
-    contentType
-  };
-
-  // Save to cache for potential retries / delayed uploads
   try {
-    // Fire-and-forget; don't block if cache fails
-    void saveToCache({ fileName: asset.fileName, blob: asset.blob, meta: { sourceUrl: url, label } });
-  } catch (err) {
-    console.warn('failed to save asset to cache', err);
+    await createNotionPage({
+      settings,
+      databaseId,
+      payload: post,
+      properties: buildProperties(post, propertyNames),
+      avatarAsset,
+      mediaAssets
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Notion への保存中にエラーが発生しました。';
+    await showNotification(message, true);
+    throw new AlreadyNotifiedError(message, error);
   }
-
-  return asset;
-}
-
-// IndexedDB cache utilities --------------------------------------------------
-const IDB_DB_NAME = 'x-clipper-cache';
-const IDB_STORE_NAME = 'assets';
-
-// TTL for cached assets (default 7 days)
-const DEFAULT_CACHE_TTL_DAYS = 7;
-const DEFAULT_CACHE_TTL_MS = DEFAULT_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
-
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
-        db.createObjectStore(IDB_STORE_NAME, { keyPath: 'fileName' });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function saveToCache(asset: { fileName: string; blob: Blob; meta?: Record<string, unknown> }): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
-    const store = tx.objectStore(IDB_STORE_NAME);
-    const putReq = store.put({ fileName: asset.fileName, blob: asset.blob, meta: asset.meta ?? {}, createdAt: Date.now() });
-    putReq.onsuccess = () => resolve();
-    putReq.onerror = () => reject(putReq.error);
-  });
-}
-
-async function getFromCache(fileName: string): Promise<{ fileName: string; blob: Blob; meta?: Record<string, unknown> } | null> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE_NAME, 'readonly');
-    const store = tx.objectStore(IDB_STORE_NAME);
-    const req = store.get(fileName);
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function deleteFromCache(fileName: string): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
-    const store = tx.objectStore(IDB_STORE_NAME);
-    const req = store.delete(fileName);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function getCachedAsset(fileName: string): Promise<{ fileName: string; blob: Blob; meta?: Record<string, unknown> } | null> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE_NAME, 'readonly');
-    const store = tx.objectStore(IDB_STORE_NAME);
-    const req = store.get(fileName);
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror = () => reject(req.error);
-  });
 }
 
 // Handle messages from options page for reuploading cached assets
@@ -349,13 +249,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const fileName: string = message.fileName;
   (async () => {
     try {
-      const cached = await getCachedAsset(fileName);
+      const cached = await getFromCache(fileName);
       if (!cached) {
         sendResponse({ success: false, error: 'not_found' });
         return;
       }
 
-      // we need settings to create upload object
       const settings = await getSettings();
       const asset: DownloadedAsset = {
         label: fileName,
@@ -376,7 +275,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ success: false, error: String(err) });
     }
   })();
-  return true; // indicate async sendResponse
+  return true;
 });
 
 // Handle clip requests from content script save buttons
@@ -435,443 +334,34 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-async function cleanupExpiredCache(ttlMs = DEFAULT_CACHE_TTL_MS): Promise<number> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
-    const store = tx.objectStore(IDB_STORE_NAME);
-    const req = store.openCursor();
-    let deleted = 0;
-    req.onsuccess = (ev) => {
-      const cursor = (ev.target as IDBRequest).result as IDBCursorWithValue | null;
-      if (!cursor) {
-        resolve(deleted);
-        return;
-      }
-      try {
-        const record = cursor.value as { fileName: string; createdAt?: number };
-        const createdAt = record?.createdAt ?? 0;
-        if (Date.now() - createdAt > ttlMs) {
-          cursor.delete();
-          deleted++;
-        }
-        cursor.continue();
-      } catch (err) {
-        console.warn('error while scanning cache for cleanup', err);
-        cursor.continue();
-      }
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
 // Schedule daily cleanup using chrome.alarms
 try {
   chrome.alarms.create('xclip-cache-cleanup', { periodInMinutes: 24 * 60 });
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'xclip-cache-cleanup') {
-      void cleanupExpiredCache().then((deleted) => {
-        if (deleted > 0) {
-          console.log(`x-clipper: cleaned up ${deleted} cached assets`);
-        }
-      });
+      void cleanupExpiredCache(DEFAULT_CACHE_TTL_MS)
+        .then((deleted) => {
+          if (deleted > 0) {
+            console.log(`x-clipper: cleaned up ${deleted} cached assets`);
+          }
+        })
+        .catch((err) => {
+          console.warn('x-clipper: scheduled cache cleanup failed', err);
+        });
     }
   });
 } catch (err) {
-  // In environments where alarms aren't available (e.g., tests), ignore
   console.warn('chrome.alarms not available, skipping scheduled cache cleanup', err);
 }
 
 // Run a cleanup on startup of the service worker
-void cleanupExpiredCache().then((deleted) => {
+void cleanupExpiredCache(DEFAULT_CACHE_TTL_MS).then((deleted) => {
   if (deleted > 0) {
     console.log(`x-clipper: cleaned up ${deleted} cached assets on startup`);
   }
 }).catch((err) => {
   console.warn('x-clipper: startup cache cleanup failed', err);
 });
-
-
-async function uploadAssetToNotion(
-  asset: DownloadedAsset,
-  settings: AppSettings
-): Promise<NotionFileUpload | null> {
-  if (asset.blob.size > MAX_DIRECT_UPLOAD_BYTES) {
-    return null;
-  }
-  try {
-    const uploadMeta = await createFileUploadObject(settings);
-    const uploaded = await sendFileUploadContents({
-      settings,
-      fileUploadId: uploadMeta.id,
-      blob: asset.blob,
-      fileName: asset.fileName,
-      contentType: asset.contentType
-    });
-    if (uploaded.status !== 'uploaded') {
-      throw new Error(
-        `Notion へのアップロードが完了しませんでした（status: ${uploaded.status}）`
-      );
-    }
-    // On success, remove cached copy if present
-    try {
-      await deleteFromCache(asset.fileName);
-    } catch (err) {
-      console.warn('failed to delete cached asset after upload', asset.fileName, err);
-    }
-    return uploaded;
-  } catch (error) {
-    console.warn('Notion へのファイルアップロードに失敗しました', asset.fileName, error);
-    return null;
-  }
-}
-
-async function createFileUploadObject(
-  settings: AppSettings
-): Promise<{ id: string }> {
-  const response = await notionRequest(
-    '/file_uploads',
-    {
-      method: 'POST',
-      body: JSON.stringify({ mode: 'single_part' })
-    },
-    settings
-  );
-  const json = await response.json();
-  if (!response.ok) {
-    throw new Error(
-      `ファイルアップロード ID の作成に失敗しました（HTTP ${response.status}）: ${JSON.stringify(
-        json
-      )}`
-    );
-  }
-  if (!json?.id) {
-    throw new Error('ファイルアップロード ID がレスポンスに含まれていません。');
-  }
-  return json as { id: string };
-}
-
-async function sendFileUploadContents({
-  settings,
-  fileUploadId,
-  blob,
-  fileName,
-  contentType
-}: {
-  settings: AppSettings;
-  fileUploadId: string;
-  blob: Blob;
-  fileName: string;
-  contentType: string;
-}): Promise<NotionFileUpload> {
-  const formData = new FormData();
-  formData.append(
-    'file',
-    new Blob([blob], { type: contentType }),
-    fileName
-  );
-
-  const response = await notionRequest(
-    `/file_uploads/${fileUploadId}/send`,
-    {
-      method: 'POST',
-      body: formData
-    },
-    settings
-  );
-  const json = await response.json();
-  if (!response.ok) {
-    throw new Error(
-      `ファイルアップロード送信に失敗しました（HTTP ${response.status}）: ${JSON.stringify(
-        json
-      )}`
-    );
-  }
-  return json as NotionFileUpload;
-}
-
-async function createNotionPage({
-  settings,
-  databaseId,
-  payload,
-  properties,
-  avatarAsset,
-  mediaAssets
-}: {
-  settings: AppSettings;
-  databaseId: string;
-  payload: XPostPayload;
-  properties: ReturnType<typeof buildProperties>;
-  avatarAsset: DownloadedAsset | null;
-  mediaAssets: DownloadedAsset[];
-}) {
-  const requestBody = {
-    parent: { database_id: databaseId },
-    icon: buildIconFromAsset(avatarAsset, payload.avatarUrl),
-    cover: buildCoverFromAsset(mediaAssets[0], payload.images?.[0]),
-    properties,
-    children: buildChildren(payload, mediaAssets)
-  };
-
-  const response = await notionRequest(
-    '/pages',
-    {
-      method: 'POST',
-      body: JSON.stringify(requestBody)
-    },
-    settings
-  );
-  if (!response.ok) {
-    let detail = '';
-    try {
-      const data = await response.json();
-      detail = JSON.stringify(data);
-    } catch {
-      detail = await response.text();
-    }
-    console.error('Notion /pages response error', { status: response.status, body: detail });
-    // If database not found or permissions issue, notify the user with guidance
-    try {
-      const parsed = JSON.parse(detail || '{}');
-      if (response.status === 404 || parsed?.code === 'object_not_found') {
-        void showNotification('Notion のデータベースが見つかりません。データベースを integration に共有しているか確認してください。', true);
-      } else if (response.status === 401 || response.status === 403) {
-        void showNotification('Notion API キーが無効か権限が不足しています。Options で API キーと DB 共有を確認してください。', true);
-      } else {
-        void showNotification('Notion へのページ作成に失敗しました。コンソールログを確認してください。', true);
-      }
-    } catch (err) {
-      void showNotification('Notion へのページ作成に失敗しました。コンソールログを確認してください。', true);
-    }
-    throw new Error(`Notion ページの作成に失敗しました（HTTP ${response.status}）: ${detail}`);
-  }
-}
-
-function notionRequest(
-  path: string,
-  init: RequestInit,
-  settings: AppSettings
-): Promise<Response> {
-  const notionVersion = settings.notionVersion?.trim() || '2025-09-03';
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${settings.notionApiKey.trim()}`,
-    'Notion-Version': notionVersion
-  };
-
-  const body = init?.body ?? null;
-  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
-  if (body && !isFormData) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  if (init.headers) {
-    Object.assign(headers, init.headers as Record<string, string>);
-  }
-
-  return fetch(`${NOTION_API_URL}${path}`, {
-    ...init,
-    headers
-  });
-}
-
-function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
-  const properties: Record<string, unknown> = {};
-  function buildCompactTitle(text?: string) {
-    const trimmed = text?.trim();
-    if (!trimmed) return 'Image';
-    const newlineIndex = trimmed.indexOf('\n');
-    // 改行がある場合はその手前まで
-    if (newlineIndex !== -1) {
-      const endIndex = Math.min(newlineIndex, 120);
-      return trimmed.slice(0, endIndex) + (endIndex < trimmed.length ? '...' : '');
-    }
-    // 改行がない場合は120文字まで
-    return trimmed.slice(0, 120) + (trimmed.length > 120 ? '...' : '');
-  }
-  const fallbackTitle = buildCompactTitle(payload.text);
-
-  const titleKey = map.title?.trim();
-  if (titleKey) {
-    properties[titleKey] = {
-      title: [
-        {
-          text: { content: fallbackTitle || 'Image' }
-        }
-      ]
-    };
-  }
-
-  const screenNameKey = map.screenName?.trim();
-  if (screenNameKey && payload.screenName) {
-    properties[screenNameKey] = {
-      rich_text: [
-        {
-          text: { content: payload.screenName }
-        }
-      ]
-    };
-  }
-
-  const userNameKey = map.userName?.trim();
-  if (userNameKey && payload.userName) {
-    properties[userNameKey] = {
-      rich_text: [
-        {
-          text: { content: payload.userName }
-        }
-      ]
-    };
-  }
-
-  const tweetUrlKey = map.tweetUrl?.trim();
-  if (tweetUrlKey) {
-    properties[tweetUrlKey] = {
-      url: payload.url
-    };
-  }
-
-  const postedAtKey = map.postedAt?.trim();
-  if (postedAtKey && payload.timestamp) {
-    properties[postedAtKey] = {
-      date: {
-        start: payload.timestamp
-      }
-    };
-  }
-
-  return properties;
-}
-
-function buildChildren(payload: XPostPayload, mediaAssets: DownloadedAsset[]) {
-  const children: unknown[] = [];
-
-  if (payload.text) {
-    children.push({
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [
-          {
-            type: 'text',
-            text: {
-              content: payload.text
-            }
-          }
-        ]
-      }
-    });
-  }
-
-  const assetMap = new Map(
-    mediaAssets.map((asset) => [asset.sourceUrl, asset])
-  );
-  const usedSources = new Set<string>();
-
-  if (Array.isArray(payload.images) && payload.images.length > 0) {
-    // keep Notion children aligned with the extracted order, falling back to external URLs if downloads failed
-    for (const originalUrl of payload.images) {
-      if (!originalUrl) continue;
-      const asset = assetMap.get(originalUrl);
-      if (asset) {
-        usedSources.add(asset.sourceUrl);
-        children.push({
-          object: 'block',
-          type: 'image',
-          image: buildNotionFileSource(asset)
-        });
-      } else {
-        children.push({
-          object: 'block',
-          type: 'image',
-          image: {
-            type: 'external',
-            external: { url: originalUrl }
-          }
-        });
-      }
-    }
-  } else {
-    for (const asset of mediaAssets) {
-      children.push({
-        object: 'block',
-        type: 'image',
-        image: buildNotionFileSource(asset)
-      });
-      usedSources.add(asset.sourceUrl);
-    }
-  }
-
-  // include any downloaded assets that were not part of payload.images (edge cases)
-  for (const asset of mediaAssets) {
-    if (usedSources.has(asset.sourceUrl)) continue;
-    children.push({
-      object: 'block',
-      type: 'image',
-      image: buildNotionFileSource(asset)
-    });
-  }
-
-  return children;
-}
-
-function buildNotionFileSource(asset: DownloadedAsset) {
-  if (asset.notionFileUpload?.id) {
-    return {
-      type: 'file_upload',
-      file_upload: {
-        id: asset.notionFileUpload.id
-      }
-    };
-  }
-  return {
-    type: 'external',
-    external: {
-      url: asset.sourceUrl
-    }
-  };
-}
-
-function buildIconFromAsset(
-  asset: DownloadedAsset | null | undefined,
-  fallbackUrl?: string | null
-) {
-  if (asset) {
-    const source = buildNotionFileSource(asset);
-    if (source) {
-      return source;
-    }
-  }
-  if (fallbackUrl) {
-    return {
-      type: 'external',
-      external: {
-        url: fallbackUrl
-      }
-    };
-  }
-  return undefined;
-}
-
-function buildCoverFromAsset(
-  asset: DownloadedAsset | null | undefined,
-  fallbackUrl?: string | null
-) {
-  if (asset) {
-    const source = buildNotionFileSource(asset);
-    if (source) {
-      return source;
-    }
-  }
-  if (fallbackUrl) {
-    return {
-      type: 'external',
-      external: {
-        url: fallbackUrl
-      }
-    };
-  }
-  return undefined;
-}
 
 function resolveExtension(url: string, contentType: string) {
   try {
@@ -912,7 +402,6 @@ function normalizeDatabaseId(input: string) {
   if (!match) {
     throw new Error('Notion データベース ID の形式が認識できませんでした。');
   }
-  // return compact (no hyphens) which Notion API accepts as database_id
   return match[0].replace(/-/g, '');
 }
 
