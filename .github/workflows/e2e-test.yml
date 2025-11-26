@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.56.1-jammy
     permissions:
