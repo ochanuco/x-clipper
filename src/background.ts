@@ -3,11 +3,11 @@ import type { AppSettings, DownloadedAsset } from './types.js';
 import type { XPostPayload } from './domain/x/types.js';
 import { downloadAsset } from './services/downloader.js';
 import { uploadAssetToNotion, createNotionPage, buildProperties } from './domain/notion/client.js';
-import { getFromCache, cleanupExpiredCache } from './domain/storage/cache.js';
+import { cleanupExpiredCache, deleteFromCache } from './domain/storage/cache.js';
 
 const CONTEXT_MENU_ID = 'x-clipper-x-post';
 const NOTIFICATION_ICON_PATH = 'icons/icon-128.png';
-const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
@@ -235,6 +235,10 @@ async function clipPostToNotion(
       avatarAsset,
       mediaAssets
     });
+    await clearCachedAssets([
+      avatarAsset,
+      ...mediaAssets
+    ]);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Notion への保存中にエラーが発生しました。';
@@ -243,40 +247,16 @@ async function clipPostToNotion(
   }
 }
 
-// Handle messages from options page for reuploading cached assets
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!message || message.type !== 'REUPLOAD_ASSET') return undefined;
-  const fileName: string = message.fileName;
-  (async () => {
-    try {
-      const cached = await getFromCache(fileName);
-      if (!cached) {
-        sendResponse({ success: false, error: 'not_found' });
-        return;
-      }
-
-      const settings = await getSettings();
-      const asset: DownloadedAsset = {
-        label: fileName,
-        sourceUrl: String(cached.meta?.sourceUrl ?? ''),
-        blob: cached.blob,
-        fileName: cached.fileName,
-        contentType: cached.blob.type || 'application/octet-stream'
-      };
-
-      const upload = await uploadAssetToNotion(asset, settings);
-      if (upload) {
-        sendResponse({ success: true });
-      } else {
-        sendResponse({ success: false, error: 'upload_failed' });
-      }
-    } catch (err) {
-      console.warn('reupload failed', err);
-      sendResponse({ success: false, error: String(err) });
-    }
-  })();
-  return true;
-});
+async function clearCachedAssets(assets: Array<DownloadedAsset | null | undefined>) {
+  const targets = assets.filter((asset): asset is DownloadedAsset => !!asset);
+  await Promise.all(
+    targets.map((asset) =>
+      deleteFromCache(asset.fileName).catch((err) => {
+        console.warn('failed to delete cached asset', asset.fileName, err);
+      })
+    )
+  );
+}
 
 // Handle clip requests from content script save buttons
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -334,12 +314,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-// Schedule daily cleanup using chrome.alarms
+// Schedule frequent cleanup using chrome.alarms
 try {
-  chrome.alarms.create('xclip-cache-cleanup', { periodInMinutes: 24 * 60 });
+  const periodInMinutes = Math.max(1, Math.round(CACHE_TTL_MS / 60000));
+  chrome.alarms.create('xclip-cache-cleanup', { periodInMinutes });
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'xclip-cache-cleanup') {
-      void cleanupExpiredCache(DEFAULT_CACHE_TTL_MS)
+      void cleanupExpiredCache(CACHE_TTL_MS)
         .then((deleted) => {
           if (deleted > 0) {
             console.log(`x-clipper: cleaned up ${deleted} cached assets`);
@@ -355,7 +336,7 @@ try {
 }
 
 // Run a cleanup on startup of the service worker
-void cleanupExpiredCache(DEFAULT_CACHE_TTL_MS).then((deleted) => {
+void cleanupExpiredCache(CACHE_TTL_MS).then((deleted) => {
   if (deleted > 0) {
     console.log(`x-clipper: cleaned up ${deleted} cached assets on startup`);
   }
