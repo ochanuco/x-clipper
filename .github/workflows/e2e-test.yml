@@ -28,10 +28,62 @@ jobs:
     - name: Install Playwright Browsers
       run: pnpm exec playwright install --with-deps
     - name: Run Playwright tests
-      run: pnpm test:e2e
+      run: |
+        pnpm test:e2e | tee e2e-test.log
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: playwright-report
         path: .playwright-output/
         retention-days: 30
+    - name: Report E2E test result to PR
+      if: always()
+      uses: actions/github-script@v7
+      env:
+        RESULT: ${{ job.status }}
+        WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const marker = '<!-- e2e-test-report -->';
+          const status = process.env.RESULT;
+          const statusLabel = status === 'success'
+            ? '✅ 成功'
+            : status === 'failure'
+              ? '❌ 失敗'
+              : `⚠️ ${status}`;
+
+          const issueNumber = context.payload.pull_request?.number;
+          if (!issueNumber) {
+            core.info('Pull request が見つかりませんでした。');
+            return;
+          }
+
+          const params = { owner: context.repo.owner, repo: context.repo.repo, issue_number: issueNumber };
+          const comments = await github.paginate(github.rest.issues.listComments, params);
+          const existing = comments.find((comment) => comment.body?.includes(marker));
+
+          let logSnippet = '';
+          if (fs.existsSync('e2e-test.log')) {
+            const content = fs.readFileSync('e2e-test.log', 'utf8');
+            const tail = content.slice(-3500);
+            logSnippet = `\n\n<details><summary>テスト出力</summary>\n\n\`\`\`\n${tail}\n\`\`\`\n</details>`;
+          }
+
+          const body = `${marker}\n\n` +
+            `## Playwright E2E テスト結果\n` +
+            `- ステータス: ${statusLabel}\n` +
+            `- ワークフロー実行: [${process.env.WORKFLOW_URL}](${process.env.WORKFLOW_URL})` +
+            logSnippet;
+
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({ ...params, body });
+          }
