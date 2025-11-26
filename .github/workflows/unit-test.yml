@@ -43,6 +43,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            const stripAnsi = (value) => value.replace(
+              /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
+              '',
+            );
             const marker = '<!-- unit-test-report -->';
             const status = process.env.RESULT;
             const attempt = process.env.RUN_ATTEMPT || '1';
@@ -53,7 +57,7 @@ jobs:
                 : `⚠️ ${status}`;
 
             const log = fs.existsSync('unit-test.log')
-              ? fs.readFileSync('unit-test.log', 'utf8').trim()
+              ? stripAnsi(fs.readFileSync('unit-test.log', 'utf8').trim())
               : 'ログが取得できませんでした。';
 
             const issueNumber = context.payload.pull_request?.number;
