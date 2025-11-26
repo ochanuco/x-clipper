@@ -53,11 +53,11 @@ test.describe('オフラインMV3クリッピング', () => {
     }
 
     expect(notionPayload.parent.database_id).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-    expect(notionPayload.properties['Name'].title[0].text.content).toContain('（');
+    expect(notionPayload.properties['Name'].title[0].text.content).toContain('#野原ひろし昼メシの流儀');
     expect(notionPayload.properties['Screen Name'].rich_text[0].text.content).toBe('ちゃぬ');
     expect(notionPayload.properties['Username'].rich_text[0].text.content).toBe('@ochanuco');
-    expect(notionPayload.properties['Tweet URL'].url).toBe('https://x.com/ochanuco/status/1931245502743589365');
-    expect(notionPayload.properties['Posted At'].date.start).toBe('2025-06-07T07:03:03.000Z');
+    expect(notionPayload.properties['Tweet URL'].url).toBe('https://x.com/ochanuco/status/1993521391329853613');
+    expect(notionPayload.properties['Posted At'].date.start).toBe('2025-11-26T03:25:12.000Z');
 
     await page.waitForFunction(() => {
       const button = document.querySelector<HTMLButtonElement>('.x-clipper-save-button');
