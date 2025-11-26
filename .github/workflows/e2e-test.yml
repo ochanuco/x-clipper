@@ -46,13 +46,19 @@ jobs:
       uses: actions/github-script@v7
       env:
         RESULT: ${{ job.status }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
         WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
+          const stripAnsi = (value) => value.replace(
+            /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
+            '',
+          );
           const marker = '<!-- e2e-test-report -->';
           const status = process.env.RESULT;
+          const attempt = process.env.RUN_ATTEMPT || '1';
           const statusLabel = status === 'success'
             ? '✅ 成功'
             : status === 'failure'
@@ -60,7 +66,7 @@ jobs:
               : `⚠️ ${status}`;
 
           const log = fs.existsSync('e2e-test.log')
-            ? fs.readFileSync('e2e-test.log', 'utf8').trim()
+            ? stripAnsi(fs.readFileSync('e2e-test.log', 'utf8').trim())
             : 'ログが取得できませんでした。';
 
           const issueNumber = context.payload.pull_request?.number;
@@ -73,12 +79,20 @@ jobs:
           const comments = await github.paginate(github.rest.issues.listComments, params);
           const existing = comments.find((comment) => comment.body?.includes(marker));
 
-          const body = `${marker}\n\n` +
-            `## Playwright E2E テスト結果\n\n` +
+          const heading = `${marker}\n\n## Playwright E2E テスト結果履歴`;
+          const previousBody = existing?.body ?? '';
+          const previousEntries = previousBody.includes(heading)
+            ? previousBody.slice(previousBody.indexOf(heading) + heading.length).trim()
+            : '';
+
+          const runLabel = `Run #${process.env.GITHUB_RUN_NUMBER}（試行 ${attempt}）`;
+          const entry = `### ${runLabel}\n\n` +
             `| ステータス | ワークフロー |\n` +
             `| --- | --- |\n` +
             `| ${statusLabel} | [${process.env.WORKFLOW_URL}](${process.env.WORKFLOW_URL}) |\n\n` +
             `<details>\n<summary>実行ログを表示</summary>\n\n\`\`\`\n${log}\n\`\`\`\n\n</details>`;
+
+          const body = `${heading}\n\n${entry}${previousEntries ? `\n\n${previousEntries}` : ''}`;
 
           if (existing) {
             await github.rest.issues.updateComment({
