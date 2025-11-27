@@ -15,6 +15,9 @@ export default defineConfig({
   use: {
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    trace: 'retain-on-failure'
+    trace: 'retain-on-failure',
+    launchOptions: {
+      args: ['--disable-dev-shm-usage'] // avoid shared memory exhaustion on CI
+    }
   }
 });
