@@ -25,6 +25,8 @@ export function createSaveButton(): HTMLButtonElement {
     btn.style.background = 'white';
     btn.style.position = 'relative';
     btn.style.pointerEvents = 'auto';
+    btn.style.isolation = 'isolate';
+    btn.style.zIndex = '2147483647';
     btn.style.cursor = 'pointer';
     btn.style.boxShadow = '0 1px 0 rgba(0,0,0,0.03)';
     return btn;
