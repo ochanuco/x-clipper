@@ -10,6 +10,11 @@ export async function serveOfflineTweet(
   context: BrowserContext,
   { tweetHtml, avatarBuffer, mediaBuffer }: OfflineTweetAssets
 ) {
+  // 実サイトの追加リクエストがCIで遅延しないよう、必要ドメイン以外は即座に捨てる
+  await context.route(/^(?!https:\/\/(?:x\.com|pbs\.twimg\.com)\/).*/, (route) =>
+    route.fulfill({ status: 204, body: '' })
+  );
+
   await context.route('https://x.com/**', (route) =>
     route.fulfill({
       status: 200,
