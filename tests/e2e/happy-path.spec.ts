@@ -17,10 +17,9 @@ const mediaBuffer = readFileSync(path.join(fixturesRoot, '1995882697257021838/im
 // 拡張機能をロードするカスタムフィクスチャ
 const test = base.extend({
   context: async ({ }, use) => {
-    // CI環境ではheadless: 'new'を使用（拡張機能に対応）、ローカルではheadless: false
-    const isCI = process.env.CI === 'true';
+    // 拡張機能は非headlessモードが必要、CIではxvfbで対応
     const context = await chromium.launchPersistentContext('', {
-      headless: isCI ? 'new' : false,
+      headless: false,
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
