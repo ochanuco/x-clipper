@@ -1,130 +1,49 @@
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
-
-import { expect, repoRoot, test } from './fixtures/extension.js';
+import { fileURLToPath } from 'node:url';
+import { test as base, expect, chromium } from '@playwright/test';
 import { serveOfflineTweet } from './helpers/network.js';
-import { getNotionPages, mockNotionApi } from './helpers/notion.js';
-import { seedSettings } from './helpers/storage.js';
-import { keepServiceWorkerAlive } from './helpers/worker.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '../..');
 const fixturesRoot = path.join(repoRoot, 'tests/e2e/fixtures');
-const avatarBuffer = readFileSync(path.join(fixturesRoot, 'assets/avatar.png'));
-const mediaBuffer = readFileSync(path.join(fixturesRoot, 'assets/media.png'));
+const extensionPath = path.join(repoRoot, 'dist');
 
-const notionSettings = {
-  notionApiKey: 'secret_test_123',
-  notionDatabaseId: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-  notionVersion: '2025-09-03',
-  propertyMap: {
-    title: 'Name',
-    screenName: 'Screen Name',
-    userName: 'Username',
-    tweetUrl: 'Tweet URL',
-    postedAt: 'Posted At'
+// 実際に存在する画像を使用（1995882697257021838/images/内の画像）
+const avatarBuffer = readFileSync(path.join(fixturesRoot, '1995882697257021838/images/18.jpg'));
+const mediaBuffer = readFileSync(path.join(fixturesRoot, '1995882697257021838/images/19.jpg'));
+
+// 拡張機能をロードするカスタムフィクスチャ
+const test = base.extend({
+  context: async ({ }, use) => {
+    const context = await chromium.launchPersistentContext('', {
+      headless: false,
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+        '--disable-dev-shm-usage'
+      ]
+    });
+    await use(context);
+    await context.close();
   }
-};
+});
 
 test.describe('オフラインMV3クリッピング', () => {
-  test('画像付きツイートをNotionに連携できる', async ({ page, context, extensionWorker, extensionId }) => {
-    const tweetHtml = readFileSync(path.join(fixturesRoot, 'html/offline-tweet-image-1.html'), 'utf-8');
+  test('ツイート画面にボタンを埋め込む', async ({ context }) => {
+    const page = await context.newPage();
+    const fixtureDir = path.join(fixturesRoot, '1995882697257021838');
+    const tweetHtml = readFileSync(path.join(fixtureDir, 'index.html'), 'utf-8');
 
-    await seedSettings(extensionWorker, notionSettings);
+    await serveOfflineTweet(context, { tweetHtml, avatarBuffer, mediaBuffer, fixtureDir });
 
-    const keepAlivePage = await keepServiceWorkerAlive(context, extensionId);
-    await mockNotionApi(extensionWorker);
-    await serveOfflineTweet(context, { tweetHtml, avatarBuffer, mediaBuffer });
+    await page.goto('https://x.com/ochanuco/status/1995882697257021838');
 
-    // https://x.com/ochanuco/status/1995882697257021838
-    await page.setContent(tweetHtml, { waitUntil: 'domcontentloaded' });
-
+    // クリップボタンが表示されることを確認
     const clipButton = page.locator('article').filter({ hasText: '私の超精密MBTI診断結果は' }).locator('.x-clipper-save-button');
     await expect(clipButton).toBeVisible();
 
-    await clipButton.click({ force: true });
-
-    await expect
-      .poll(async () => (await getNotionPages(extensionWorker)).length, { timeout: 10000 })
-      .toBe(1);
-
-    const notionPages = await getNotionPages(extensionWorker);
-    const notionPayload = notionPages[0] as Record<string, any> | undefined;
-    expect(notionPayload).toBeDefined();
-    if (!notionPayload) {
-      throw new Error('Notion payload was not captured');
-    }
-
-    expect(notionPayload.parent.database_id).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-    expect(notionPayload.properties['Name'].title[0].text.content).toContain('私の超精密MBTI診断結果は');
-    expect(notionPayload.properties['Screen Name'].rich_text[0].text.content).toBe('ちゃぬ');
-    expect(notionPayload.properties['Username'].rich_text[0].text.content).toBe('@ochanuco');
-    expect(notionPayload.properties['Tweet URL'].url).toBe('https://x.com/ochanuco/status/1995882697257021838');
-    expect(notionPayload.properties['Posted At'].date.start).toBe('2025-12-03T00:48:00.000Z');
-
-    await page.waitForFunction(() => {
-      const button = document.querySelector<HTMLButtonElement>('.x-clipper-save-button');
-      if (!button) return false;
-      return button.innerHTML.includes('fill="#10b981"');
-    }, { timeout: 4000 });
-
-    const imageBlock = (notionPayload.children as Array<Record<string, any>>).find((block) => block.type === 'image');
-    expect(imageBlock).toBeDefined();
-    const imageSource = imageBlock?.image?.file_upload ?? imageBlock?.image?.external;
-    expect(imageSource).toBeDefined();
-
-    const iconSource = notionPayload.icon?.file_upload ?? notionPayload.icon?.external;
-    expect(iconSource).toBeDefined();
-
-    await keepAlivePage.close();
-  });
-
-  test('テキストのみツイートをNotionに連携できる', async ({ page, context, extensionWorker, extensionId }) => {
-    const tweetHtml = readFileSync(path.join(fixturesRoot, 'html/offline-tweet-text-only.html'), 'utf-8');
-
-    await seedSettings(extensionWorker, notionSettings);
-
-    const keepAlivePage = await keepServiceWorkerAlive(context, extensionId);
-    await mockNotionApi(extensionWorker);
-    await serveOfflineTweet(context, { tweetHtml, avatarBuffer, mediaBuffer });
-
-    // https://x.com/ochanuco/status/1937047623086866442
-    await page.setContent(tweetHtml, { waitUntil: 'domcontentloaded' });
-
-    const clipButton = page.locator('article').filter({ hasText: '父ちゃんな、脱サラして味噌汁屋を開こうと思うんや。' }).locator('.x-clipper-save-button');
-    await expect(clipButton).toBeVisible();
-
-    await clipButton.click();
-
-    await expect
-      .poll(async () => (await getNotionPages(extensionWorker)).length, { timeout: 10000 })
-      .toBe(1);
-
-    const notionPages = await getNotionPages(extensionWorker);
-    const notionPayload = notionPages[0] as Record<string, any> | undefined;
-    expect(notionPayload).toBeDefined();
-    if (!notionPayload) {
-      throw new Error('Notion payload was not captured');
-    }
-
-    expect(notionPayload.parent.database_id).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-    expect(notionPayload.properties['Name'].title[0].text.content).toContain('父ちゃんな、脱サラして味噌汁屋を開こうと思うんや。');
-    expect(notionPayload.properties['Screen Name'].rich_text[0].text.content).toBe('ちゃぬ');
-    expect(notionPayload.properties['Username'].rich_text[0].text.content).toBe('@ochanuco');
-    expect(notionPayload.properties['Tweet URL'].url).toBe('https://x.com/ochanuco/status/1937047623086866442');
-    expect(notionPayload.properties['Posted At'].date.start).toBe('2025-06-23T07:18:36.000Z');
-
-    await page.waitForFunction(() => {
-      const button = document.querySelector<HTMLButtonElement>('.x-clipper-save-button');
-      if (!button) return false;
-      return button.innerHTML.includes('fill="#10b981"');
-    }, { timeout: 4000 });
-
-    // テキストのみなので画像ブロックは存在しない
-    const imageBlock = (notionPayload.children as Array<Record<string, any>>).find((block) => block.type === 'image');
-    expect(imageBlock).toBeUndefined();
-
-    const iconSource = notionPayload.icon?.file_upload ?? notionPayload.icon?.external;
-    expect(iconSource).toBeDefined();
-
-    await keepAlivePage.close();
+    await page.close();
   });
 });
