@@ -30,7 +30,7 @@ jobs:
       shell: bash
       run: |
         set -o pipefail
-        pnpm test:e2e | tee e2e-test.log
+        xvfb-run pnpm test:e2e | tee e2e-test.log
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
