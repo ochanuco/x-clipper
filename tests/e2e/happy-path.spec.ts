@@ -34,7 +34,8 @@ test.describe('オフラインMV3クリッピング', () => {
     await mockNotionApi(extensionWorker);
     await serveOfflineTweet(context, { tweetHtml, avatarBuffer, mediaBuffer });
 
-    await page.goto('https://x.com/ochanuco/status/1995882697257021838');
+    // https://x.com/ochanuco/status/1995882697257021838
+    await page.setContent(tweetHtml, { waitUntil: 'domcontentloaded' });
 
     const clipButton = page.locator('article').filter({ hasText: '私の超精密MBTI診断結果は' }).locator('.x-clipper-save-button');
     await expect(clipButton).toBeVisible();
@@ -85,7 +86,8 @@ test.describe('オフラインMV3クリッピング', () => {
     await mockNotionApi(extensionWorker);
     await serveOfflineTweet(context, { tweetHtml, avatarBuffer, mediaBuffer });
 
-    await page.goto('https://x.com/ochanuco/status/1937047623086866442');
+    // https://x.com/ochanuco/status/1937047623086866442
+    await page.setContent(tweetHtml, { waitUntil: 'domcontentloaded' });
 
     const clipButton = page.locator('article').filter({ hasText: '父ちゃんな、脱サラして味噌汁屋を開こうと思うんや。' }).locator('.x-clipper-save-button');
     await expect(clipButton).toBeVisible();
