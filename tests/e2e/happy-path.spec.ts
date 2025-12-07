@@ -34,12 +34,12 @@ test.describe('オフラインMV3クリッピング', () => {
     await mockNotionApi(extensionWorker);
     await serveOfflineTweet(context, { tweetHtml, avatarBuffer, mediaBuffer });
 
-    await page.goto('https://x.com/ochanuco/status/1931245502743589365');
+    await page.goto('https://x.com/ochanuco/status/1995882697257021838');
 
-    const clipButton = page.locator('.x-clipper-save-button');
+    const clipButton = page.locator('article').filter({ hasText: '私の超精密MBTI診断結果は' }).locator('.x-clipper-save-button');
     await expect(clipButton).toBeVisible();
 
-    await clipButton.click();
+    await clipButton.click({ force: true });
 
     await expect
       .poll(async () => (await getNotionPages(extensionWorker)).length, { timeout: 10000 })
@@ -53,11 +53,11 @@ test.describe('オフラインMV3クリッピング', () => {
     }
 
     expect(notionPayload.parent.database_id).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-    expect(notionPayload.properties['Name'].title[0].text.content).toContain('#野原ひろし昼メシの流儀');
+    expect(notionPayload.properties['Name'].title[0].text.content).toContain('私の超精密MBTI診断結果は');
     expect(notionPayload.properties['Screen Name'].rich_text[0].text.content).toBe('ちゃぬ');
     expect(notionPayload.properties['Username'].rich_text[0].text.content).toBe('@ochanuco');
-    expect(notionPayload.properties['Tweet URL'].url).toBe('https://x.com/ochanuco/status/1993521391329853613');
-    expect(notionPayload.properties['Posted At'].date.start).toBe('2025-11-26T03:25:12.000Z');
+    expect(notionPayload.properties['Tweet URL'].url).toBe('https://x.com/ochanuco/status/1995882697257021838');
+    expect(notionPayload.properties['Posted At'].date.start).toBe('2025-12-03T00:48:00.000Z');
 
     await page.waitForFunction(() => {
       const button = document.querySelector<HTMLButtonElement>('.x-clipper-save-button');
@@ -87,7 +87,7 @@ test.describe('オフラインMV3クリッピング', () => {
 
     await page.goto('https://x.com/ochanuco/status/1937047623086866442');
 
-    const clipButton = page.locator('.x-clipper-save-button');
+    const clipButton = page.locator('article').filter({ hasText: '父ちゃんな、脱サラして味噌汁屋を開こうと思うんや。' }).locator('.x-clipper-save-button');
     await expect(clipButton).toBeVisible();
 
     await clipButton.click();
