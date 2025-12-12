@@ -19,10 +19,14 @@ export function createSaveButton(): HTMLButtonElement {
     btn.style.padding = '0';
     // Insert button before overflow menu: use right margin to maintain spacing
     btn.style.marginLeft = '0';
-    btn.style.marginRight = '6px';
+    btn.style.marginRight = '0';
     btn.style.borderRadius = '999px';
     btn.style.border = '1px solid rgba(0,0,0,0.08)';
     btn.style.background = 'white';
+    btn.style.position = 'relative';
+    btn.style.pointerEvents = 'auto';
+    btn.style.isolation = 'isolate';
+    btn.style.zIndex = '2147483647';
     btn.style.cursor = 'pointer';
     btn.style.boxShadow = '0 1px 0 rgba(0,0,0,0.03)';
     return btn;
@@ -77,6 +81,15 @@ export function insertSaveButton(article: Element) {
     }
 
     const btn = createSaveButton();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'x-clipper-save-button-wrapper';
+    wrapper.style.display = 'inline-flex';
+    wrapper.style.position = 'relative';
+    wrapper.style.isolation = 'isolate'; // ensure a new stacking context above overlays (CI flakiness)
+    wrapper.style.zIndex = '2147483647';
+    wrapper.style.pointerEvents = 'auto';
+    wrapper.style.marginRight = '6px';
+    wrapper.appendChild(btn);
     console.debug('x-clipper: created button element');
 
     const originalInnerHTML = btn.innerHTML;
@@ -150,7 +163,7 @@ export function insertSaveButton(article: Element) {
 
                 const insertBeforeEl = sibling ?? rightmost;
                 if (insertBeforeEl.parentElement) {
-                    insertBeforeEl.parentElement.insertBefore(btn, insertBeforeEl);
+                    insertBeforeEl.parentElement.insertBefore(wrapper, insertBeforeEl);
                     placed = true;
                 }
             }
@@ -162,11 +175,11 @@ export function insertSaveButton(article: Element) {
     if (!placed) {
         console.debug('x-clipper: fallback placement used');
         if (actionArea) {
-            actionArea.appendChild(btn);
+            actionArea.appendChild(wrapper);
         } else {
             const header = article.querySelector('[data-testid="User-Names"], [data-testid="User-Name"]');
-            if (header) header.appendChild(btn);
-            else article.appendChild(btn);
+            if (header) header.appendChild(wrapper);
+            else article.appendChild(wrapper);
         }
     } else {
         console.debug('x-clipper: placed button successfully');
