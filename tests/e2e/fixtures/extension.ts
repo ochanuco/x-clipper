@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 export const repoRoot = path.resolve(__dirname, '../../..');
 const extensionDist = path.join(repoRoot, 'dist');
-const shouldRunHeadless = process.env.E2E_HEADFUL === '1' ? false : true;
+const isHeadful = process.env.E2E_HEADFUL === '1';
 
 type ExtensionFixtures = {
   extensionId: string;
@@ -27,31 +27,41 @@ const test = base.extend<ExtensionFixtures>({
       `--load-extension=${extensionDist}`,
       '--no-sandbox'
     ];
-    if (shouldRunHeadless) {
+    if (!isHeadful) {
       launchArgs.push('--headless=chrome');
     }
 
     const userDataDir = testInfo.outputPath('chromium-user-data-dir');
     const context = await chromium.launchPersistentContext(userDataDir, {
       channel: 'chromium',
-      headless: shouldRunHeadless,
+      headless: !isHeadful,
       chromiumSandbox: false,
       args: launchArgs
     });
 
-    await use(context);
-    await context.close();
-    await rm(userDataDir, { recursive: true, force: true });
+    try {
+      await use(context);
+    } finally {
+      await context.close();
+      await rm(userDataDir, { recursive: true, force: true });
+    }
   },
   page: async ({ context }, use) => {
     const page = await context.newPage();
-    await use(page);
-    await page.close();
+    try {
+      await use(page);
+    } finally {
+      await page.close();
+    }
   },
   extensionWorker: async ({ context }, use) => {
-    let [worker] = context.serviceWorkers();
+    let worker = context
+      .serviceWorkers()
+      .find(worker => worker.url().startsWith('chrome-extension://'));
     if (!worker) {
-      worker = await context.waitForEvent('serviceworker');
+      worker = await context.waitForEvent('serviceworker', {
+        predicate: candidate => candidate.url().startsWith('chrome-extension://')
+      });
     }
     await use(worker);
   },
