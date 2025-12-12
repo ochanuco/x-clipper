@@ -10,6 +10,11 @@ export async function serveOfflineTweet(
   context: BrowserContext,
   { tweetHtml, avatarBuffer, mediaBuffer }: OfflineTweetAssets
 ) {
+  // Block all HTTPS requests except x.com and pbs.twimg.com (prevents loading external resources)
+  await context.route(/^https:\/\/(?!x\.com\/|pbs\.twimg\.com\/).*/, (route) =>
+    route.fulfill({ status: 204, body: '' })
+  );
+
   await context.route('https://x.com/**', (route) =>
     route.fulfill({
       status: 200,

@@ -18,7 +18,7 @@ type ExtensionFixtures = {
 };
 
 const test = base.extend<ExtensionFixtures>({
-  context: async ({}, use) => {
+  context: async ({ }, use, testInfo) => {
     if (!existsSync(extensionDist)) {
       throw new Error('dist/ が見つかりません。先に pnpm run build を実行してください。');
     }
@@ -32,7 +32,7 @@ const test = base.extend<ExtensionFixtures>({
       launchArgs.push('--headless=chrome');
     }
 
-    const userDataDir = await mkdtemp(path.join(os.tmpdir(), 'x-clipper-e2e-'));
+    const userDataDir = testInfo.outputPath('chromium-user-data-dir');
     const context = await chromium.launchPersistentContext(userDataDir, {
       channel: 'chromium',
       headless: shouldRunHeadless,

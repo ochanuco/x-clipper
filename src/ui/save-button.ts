@@ -17,7 +17,7 @@ export function createSaveButton(): HTMLButtonElement {
     btn.style.width = '30px';
     btn.style.height = '30px';
     btn.style.padding = '0';
-    // place flush to the left of the overflow icon: add right margin instead
+    // Insert button before overflow menu: use right margin to maintain spacing
     btn.style.marginLeft = '0';
     btn.style.marginRight = '6px';
     btn.style.borderRadius = '999px';
