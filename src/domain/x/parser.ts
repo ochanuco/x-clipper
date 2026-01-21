@@ -193,7 +193,8 @@ export function collectFromArticle(article: Element): XPostPayload | null {
         let node = walker.nextNode();
         while (node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                parts.push(node.textContent ?? '');
+                const text = (node.textContent ?? '').replace(/[\r\n]+/g, ' ');
+                parts.push(text);
             } else if (node.nodeType === Node.ELEMENT_NODE) {
                 const element = node as Element;
                 if (element.tagName === 'IMG') {
