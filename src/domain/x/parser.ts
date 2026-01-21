@@ -207,7 +207,12 @@ export function collectFromArticle(article: Element): XPostPayload | null {
             }
             node = walker.nextNode();
         }
-        return parts.join('').replace(/\s+/g, ' ').trim();
+        const collapsed = parts.join('').replace(/[^\S\n]+/g, ' ');
+        return collapsed
+            .split('\n')
+            .map((line) => line.trim())
+            .join('\n')
+            .trim();
     }
     const text = getTextFromArticle(article);
 
