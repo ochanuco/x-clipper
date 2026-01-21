@@ -7,7 +7,7 @@ import { serveOfflineTweet } from './helpers/network.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../..');
-const fixturesRoot = path.join(repoRoot, 'tests/e2e/fixtures');
+const fixturesRoot = path.join(repoRoot, 'tests/fixtures/x');
 const extensionPath = path.join(repoRoot, 'dist');
 
 // 実際に存在する画像を使用（1995882697257021838/images/内の画像）
