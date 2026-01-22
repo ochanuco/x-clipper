@@ -184,8 +184,36 @@ export function collectFromArticle(article: Element): XPostPayload | null {
     getNamesFromRoot(namesRoot);
 
     function getTextFromArticle(a: Element) {
-        const nodes = Array.from(a.querySelectorAll('div[data-testid="tweetText"] span'));
-        return nodes.map((n) => n.textContent ?? '').join('').trim();
+        const root = a.querySelector('div[data-testid="tweetText"]');
+        if (!root) {
+            return '';
+        }
+        const parts: string[] = [];
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+        let node = walker.nextNode();
+        while (node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                const text = (node.textContent ?? '').replace(/[\r\n]+/g, ' ');
+                parts.push(text);
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node as Element;
+                if (element.tagName === 'IMG') {
+                    const alt = element.getAttribute('alt');
+                    if (alt) {
+                        parts.push(alt);
+                    }
+                } else if (element.tagName === 'BR') {
+                    parts.push('\n');
+                }
+            }
+            node = walker.nextNode();
+        }
+        const collapsed = parts.join('').replace(/[^\S\n]+/g, ' ');
+        return collapsed
+            .split('\n')
+            .map((line) => line.trim())
+            .join('\n')
+            .trim();
     }
     const text = getTextFromArticle(article);
 

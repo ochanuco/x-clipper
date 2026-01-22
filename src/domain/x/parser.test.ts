@@ -86,4 +86,33 @@ describe('collectFromArticle', () => {
 
     expect(result).toBeNull();
   });
+
+  it('should include expanded link text from tweet body', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <span>Check this</span>
+              <a href="https://t.co/abc123">
+                <span aria-hidden="true">https://</span>example.com
+              </a>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('Check this https://example.com');
+  });
 });
