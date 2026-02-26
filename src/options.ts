@@ -49,13 +49,14 @@ const allowedTypesByField: Record<MappingKey, NotionPropertyType[]> = {
 
 const form = document.getElementById('options-form') as HTMLFormElement | null;
 const statusField = document.getElementById('status') as HTMLParagraphElement | null;
-const schemaPreview = document.getElementById('schemaPreview') as HTMLDivElement | null;
 const loadDatabasesButton = document.getElementById('loadDatabasesButton') as HTMLButtonElement | null;
 const databaseSelect = document.getElementById('notionDatabaseId') as HTMLSelectElement | null;
 
 let currentDatabaseSchema: NotionDatabaseSchema = {};
 let currentDatabases: NotionDatabaseItem[] = [];
 let pendingSettings: AppSettings | null = null;
+let schemaLoadGeneration = 0;
+let databaseLoadGeneration = 0;
 
 class NotionApiError extends Error {
   public readonly status: number;
@@ -273,34 +274,6 @@ async function fetchDatabaseSchema(
   return properties as NotionDatabaseSchema;
 }
 
-function renderSchema(schema: NotionDatabaseSchema) {
-  if (!schemaPreview) return;
-
-  const entries = Object.entries(schema);
-  if (entries.length === 0) {
-    schemaPreview.innerHTML = '<p class="helper">プロパティが見つかりませんでした。</p>';
-    return;
-  }
-
-  const items = entries
-    .map(([name, prop]) => {
-      const t = isSupportedPropertyType(prop.type) ? typeLabel[prop.type] : prop.type;
-      return `<li><code>${escapeHtml(name)}</code> - <code>${escapeHtml(String(t))}</code></li>`;
-    })
-    .join('');
-
-  schemaPreview.innerHTML = `<ul>${items}</ul>`;
-}
-
-function escapeHtml(input: string): string {
-  return input
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 function encodeMappingValue(mapping: NotionPropertyMapping): string {
   return JSON.stringify(mapping);
 }
@@ -396,6 +369,7 @@ function populateDatabaseSelect(databases: NotionDatabaseItem[], selectedId = ''
 }
 
 async function loadSchemaForSelectedDatabase(preferredMap?: NotionPropertyMap) {
+  const myGeneration = ++schemaLoadGeneration;
   const apiKey = getInputValue('notionApiKey');
   const notionVersion = getNotionVersion();
   const selectedDatabaseId = databaseSelect?.value.trim() ?? '';
@@ -405,12 +379,15 @@ async function loadSchemaForSelectedDatabase(preferredMap?: NotionPropertyMap) {
   }
 
   const schema = await fetchDatabaseSchema(apiKey, notionVersion, selectedDatabaseId);
+  if (myGeneration !== schemaLoadGeneration) {
+    return;
+  }
   currentDatabaseSchema = schema;
-  renderSchema(schema);
   populateAllMappingSelects(preferredMap);
 }
 
 async function handleLoadDatabases() {
+  const myGeneration = ++databaseLoadGeneration;
   const apiKey = getInputValue('notionApiKey');
   const notionVersion = getNotionVersion();
 
@@ -424,14 +401,18 @@ async function handleLoadDatabases() {
   }
 
   try {
-    currentDatabases = await fetchDatabases(apiKey, notionVersion);
-    populateDatabaseSelect(currentDatabases, pendingSettings?.notionDatabaseId ?? '');
+    const databases = await fetchDatabases(apiKey, notionVersion);
+    if (myGeneration !== databaseLoadGeneration) {
+      return;
+    }
+
+    currentDatabases = databases;
+    populateDatabaseSelect(databases, pendingSettings?.notionDatabaseId ?? '');
 
     if (databaseSelect?.value) {
       await loadSchemaForSelectedDatabase(pendingSettings?.propertyMap);
     } else {
       currentDatabaseSchema = {};
-      renderSchema({});
       populateAllMappingSelects();
     }
 
@@ -511,11 +492,27 @@ async function handleSubmit(event: Event) {
     };
 
     await saveSettings(settings);
+    pendingSettings = cloneSettings(settings);
     setStatus('保存しました。', false);
   } catch (error) {
     const message = error instanceof Error ? error.message : '保存中にエラーが発生しました。';
     setStatus(message, true);
   }
+}
+
+function cloneSettings(settings: AppSettings): AppSettings {
+  return {
+    notionApiKey: settings.notionApiKey,
+    notionDatabaseId: settings.notionDatabaseId,
+    notionVersion: settings.notionVersion,
+    propertyMap: {
+      title: { ...settings.propertyMap.title },
+      screenName: { ...settings.propertyMap.screenName },
+      userName: { ...settings.propertyMap.userName },
+      tweetUrl: { ...settings.propertyMap.tweetUrl },
+      postedAt: { ...settings.propertyMap.postedAt }
+    }
+  };
 }
 
 async function hydrateForm() {

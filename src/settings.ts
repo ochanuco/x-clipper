@@ -76,16 +76,18 @@ function normalizeEntry(
   fallbackType: NotionPropertyType
 ) {
   if (typeof value === 'string') {
+    const normalizedName = value.trim() || fallbackName;
     return {
-      propertyName: value,
+      propertyName: normalizedName,
       propertyType: fallbackType
     };
   }
 
   if (value && typeof value === 'object') {
     const obj = value as Record<string, unknown>;
+    const normalizedName = String(obj.propertyName ?? fallbackName).trim() || fallbackName;
     return {
-      propertyName: String(obj.propertyName ?? fallbackName),
+      propertyName: normalizedName,
       propertyType: normalizePropertyType(obj.propertyType, fallbackType)
     };
   }
