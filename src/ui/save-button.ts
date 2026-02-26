@@ -66,13 +66,36 @@ function queryLikeControl(root: ParentNode): Element | null {
     return root.querySelector('[data-testid="like"], [data-testid="unlike"]');
 }
 
-function placeButtonLeftOfLike(actionArea: Element, wrapper: Element): boolean {
-    const likeButton = queryLikeControl(actionArea);
-    if (!likeButton) return false;
+function findInsertionPointForLike(root: Element): { parent: Element; before: Element } | null {
+    const likeButton = queryLikeControl(root);
+    if (!likeButton) return null;
 
-    const likeSlot = findDirectChild(actionArea, likeButton);
-    if (!likeSlot) return false;
-    actionArea.insertBefore(wrapper, likeSlot);
+    let slot: Element | null = likeButton;
+    while (slot && slot.parentElement && slot.parentElement !== root) {
+        const parent: Element = slot.parentElement;
+        const siblings = Array.from(parent.children) as Element[];
+        const hasSiblingAction = siblings.some(
+            (child) =>
+                child !== slot &&
+                !!child.querySelector(
+                    '[data-testid="reply"], [data-testid="retweet"], [data-testid="like"], [data-testid="unlike"], [data-testid="bookmark"], [data-testid="analytics"]'
+                )
+        );
+        if (hasSiblingAction) {
+            return { parent, before: slot };
+        }
+        slot = parent;
+    }
+
+    const likeSlot = findDirectChild(root, likeButton);
+    if (!likeSlot) return null;
+    return { parent: root, before: likeSlot };
+}
+
+function placeButtonLeftOfLike(actionArea: Element, wrapper: Element): boolean {
+    const insertion = findInsertionPointForLike(actionArea);
+    if (!insertion) return false;
+    insertion.parent.insertBefore(wrapper, insertion.before);
     return true;
 }
 
@@ -86,8 +109,13 @@ function scoreActionArea(group: Element): number {
 }
 
 function findTweetActionArea(article: Element): Element | null {
-    const explicitActionArea = article.querySelector('[data-testid="tweetAction"]');
-    if (explicitActionArea && queryLikeControl(explicitActionArea)) return explicitActionArea;
+    const explicitActionAreas = Array.from(article.querySelectorAll('[data-testid="tweetAction"]')).filter(
+        (el) => el.closest('article') === article && queryLikeControl(el)
+    );
+    if (explicitActionAreas.length > 0) {
+        const sorted = explicitActionAreas.sort((a, b) => scoreActionArea(b) - scoreActionArea(a));
+        if (scoreActionArea(sorted[0]) > 0) return sorted[0];
+    }
 
     const groups = Array.from(article.querySelectorAll('[role="group"]'));
     const sameArticleGroups = groups.filter((group) => group.closest('article') === article);

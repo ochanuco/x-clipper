@@ -132,4 +132,34 @@ describe('insertSaveButton', () => {
         const unlikeSlot = actionArea.querySelector('[data-testid="unlike"]')?.parentElement;
         expect(wrapper?.nextElementSibling).toBe(unlikeSlot);
     });
+
+    it('inserts before like slot when tweetAction is a wrapper', () => {
+        const article = document.createElement('article');
+        article.setAttribute('data-testid', 'tweet');
+
+        const tweetActionWrapper = document.createElement('div');
+        tweetActionWrapper.setAttribute('data-testid', 'tweetAction');
+
+        const actionRow = document.createElement('div');
+        actionRow.setAttribute('role', 'group');
+        for (const testId of ['reply', 'retweet', 'like', 'bookmark']) {
+            const slot = document.createElement('div');
+            const button = document.createElement('button');
+            button.setAttribute('data-testid', testId);
+            slot.appendChild(button);
+            actionRow.appendChild(slot);
+        }
+
+        tweetActionWrapper.appendChild(actionRow);
+        article.appendChild(tweetActionWrapper);
+        document.body.appendChild(article);
+
+        insertSaveButton(article);
+
+        const wrapper = actionRow.querySelector('.x-clipper-save-button-wrapper');
+        const likeSlot = actionRow.querySelector('[data-testid="like"]')?.parentElement;
+        expect(wrapper).toBeTruthy();
+        expect(wrapper?.nextElementSibling).toBe(likeSlot);
+        expect(tweetActionWrapper.firstElementChild).toBe(actionRow);
+    });
 });
