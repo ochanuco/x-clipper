@@ -7,8 +7,8 @@ export function createSaveButton(): HTMLButtonElement {
     btn.setAttribute('aria-label', '保存');
     // Icon-style circular button (compact)
     btn.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke="#111827" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="#fff" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5h-.75A2.25 2.25 0 0 0 4.5 9.75v7.5a2.25 2.25 0 0 0 2.25 2.25h7.5a2.25 2.25 0 0 0 2.25-2.25v-7.5a2.25 2.25 0 0 0-2.25-2.25h-.75m0-3-3-3m0 0-3 3m3-3v11.25m6-2.25h.75a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25h-7.5a2.25 2.25 0 0 1-2.25-2.25v-.75" />
     </svg>
   `;
     btn.style.display = 'inline-flex';
@@ -17,19 +17,43 @@ export function createSaveButton(): HTMLButtonElement {
     btn.style.width = '32px';
     btn.style.height = '32px';
     btn.style.padding = '0';
+    btn.style.lineHeight = '0';
     // Insert button before overflow menu: use right margin to maintain spacing
     btn.style.marginLeft = '0';
     btn.style.marginRight = '0';
     btn.style.borderRadius = '999px';
-    btn.style.border = '1px solid rgba(15, 23, 42, 0.18)';
-    btn.style.background = 'white';
+    btn.style.border = 'none';
+    btn.style.background = 'transparent';
     btn.style.position = 'relative';
     btn.style.pointerEvents = 'auto';
     btn.style.isolation = 'isolate';
     btn.style.zIndex = '2147483647';
     btn.style.cursor = 'pointer';
-    btn.style.boxShadow = '0 1px 0 rgba(0,0,0,0.03)';
-    btn.style.transition = 'transform 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease';
+    btn.style.boxShadow = 'none';
+    btn.style.color = 'rgba(17, 24, 39, 0.9)';
+    btn.style.transition = 'background-color 120ms ease, color 120ms ease';
+
+    const setIdleStyle = () => {
+        btn.style.background = 'transparent';
+        btn.style.color = 'rgba(17, 24, 39, 0.9)';
+    };
+    const setHoverStyle = () => {
+        if (btn.disabled) return;
+        btn.style.background = 'rgba(29, 155, 240, 0.12)';
+        btn.style.color = 'rgb(29, 155, 240)';
+    };
+    const setActiveStyle = () => {
+        if (btn.disabled) return;
+        btn.style.background = 'rgba(29, 155, 240, 0.2)';
+        btn.style.color = 'rgb(29, 155, 240)';
+    };
+
+    btn.addEventListener('mouseenter', setHoverStyle);
+    btn.addEventListener('mouseleave', setIdleStyle);
+    btn.addEventListener('mousedown', setActiveStyle);
+    btn.addEventListener('mouseup', setHoverStyle);
+    btn.addEventListener('blur', setIdleStyle);
+
     return btn;
 }
 
@@ -138,11 +162,10 @@ export function insertSaveButton(article: Element) {
 
     const actionArea = findTweetActionArea(article);
 
-    // Inject styles for rotation if not already present
-    if (!document.getElementById('x-clipper-styles')) {
-        const style = document.createElement('style');
-        style.id = 'x-clipper-styles';
-        style.textContent = `
+    // Keep styles up-to-date even when the extension is reloaded on an open tab.
+    const style = (document.getElementById('x-clipper-styles') as HTMLStyleElement | null) ?? document.createElement('style');
+    style.id = 'x-clipper-styles';
+    style.textContent = `
       @keyframes x-clipper-spin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
@@ -150,19 +173,8 @@ export function insertSaveButton(article: Element) {
       .x-clipper-spin {
         animation: x-clipper-spin 1s linear infinite;
       }
-      .x-clipper-save-button:hover:not(:disabled) {
-        transform: scale(1.06);
-        background: rgba(37, 99, 235, 0.08);
-        border-color: rgba(37, 99, 235, 0.7);
-        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.18);
-      }
-      .x-clipper-save-button:hover:not(:disabled) svg path:first-child {
-        stroke: #2563eb;
-      }
-      .x-clipper-save-button:active:not(:disabled) {
-        transform: scale(0.98);
-      }
     `;
+    if (!style.parentElement) {
         document.head.appendChild(style);
     }
 
