@@ -1,9 +1,22 @@
+export type NotionPropertyType =
+  | 'title'
+  | 'rich_text'
+  | 'select'
+  | 'multi_select'
+  | 'url'
+  | 'date';
+
+export interface NotionPropertyMapping {
+  propertyName: string;
+  propertyType: NotionPropertyType;
+}
+
 export interface NotionPropertyMap {
-  title: string;
-  screenName: string;
-  userName: string;
-  tweetUrl: string;
-  postedAt: string;
+  title: NotionPropertyMapping;
+  screenName: NotionPropertyMapping;
+  userName: NotionPropertyMapping;
+  tweetUrl: NotionPropertyMapping;
+  postedAt: NotionPropertyMapping;
 }
 
 export interface AppSettings {

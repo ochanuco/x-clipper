@@ -1,73 +1,79 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { buildProperties } from './client.js';
 import type { XPostPayload } from '../x/types.js';
 import type { AppSettings } from '../../types.js';
 
 describe('buildProperties', () => {
-    const mockPayload: XPostPayload = {
-        screenName: 'Test User',
-        userName: '@testuser',
-        text: 'This is a test tweet with some content',
-        timestamp: '2025-11-24T12:00:00.000Z',
-        images: ['https://example.com/image1.jpg'],
-        avatarUrl: 'https://example.com/avatar.jpg',
-        url: 'https://x.com/testuser/status/123456789'
+  const mockPayload: XPostPayload = {
+    screenName: 'Test User',
+    userName: '@testuser',
+    text: 'This is a test tweet with some content',
+    timestamp: '2025-11-24T12:00:00.000Z',
+    images: ['https://example.com/image1.jpg'],
+    avatarUrl: 'https://example.com/avatar.jpg',
+    url: 'https://x.com/testuser/status/123456789'
+  };
+
+  const defaultMap: AppSettings['propertyMap'] = {
+    title: { propertyName: 'Name', propertyType: 'title' },
+    screenName: { propertyName: 'Screen Name', propertyType: 'rich_text' },
+    userName: { propertyName: 'Username', propertyType: 'rich_text' },
+    tweetUrl: { propertyName: 'Tweet URL', propertyType: 'url' },
+    postedAt: { propertyName: 'Posted At', propertyType: 'date' }
+  };
+
+  it('builds properties with typed mapping', () => {
+    const result = buildProperties(mockPayload, defaultMap) as Record<string, any>;
+
+    expect(result.Name.title[0].text.content).toBe('This is a test tweet with some content');
+    expect(result['Screen Name'].rich_text[0].text.content).toBe('Test User');
+    expect(result.Username.rich_text[0].text.content).toBe('@testuser');
+    expect(result['Tweet URL'].url).toBe('https://x.com/testuser/status/123456789');
+    expect(result['Posted At'].date.start).toBe('2025-11-24T12:00:00.000Z');
+  });
+
+  it('supports select and multi_select mapping', () => {
+    const customMap: AppSettings['propertyMap'] = {
+      ...defaultMap,
+      screenName: { propertyName: 'Screen Select', propertyType: 'select' },
+      userName: { propertyName: 'User Tags', propertyType: 'multi_select' }
     };
 
-    const mockPropertyMap: AppSettings['propertyMap'] = {
-        title: 'Title',
-        screenName: 'Screen Name',
-        userName: 'User Name',
-        tweetUrl: 'Tweet URL',
-        postedAt: 'Posted At'
+    const result = buildProperties(mockPayload, customMap) as Record<string, any>;
+
+    expect(result['Screen Select'].select.name).toBe('Test User');
+    expect(result['User Tags'].multi_select[0].name).toBe('@testuser');
+  });
+
+  it('throws for invalid url mapping value', () => {
+    const customMap: AppSettings['propertyMap'] = {
+      ...defaultMap,
+      screenName: { propertyName: 'Screen URL', propertyType: 'url' }
     };
 
-    it('should build properties with all fields', () => {
-        const result = buildProperties(mockPayload, mockPropertyMap);
+    expect(() => buildProperties(mockPayload, customMap)).toThrow('URL 型に無効な値');
+  });
 
-        expect(result).toHaveProperty('Title');
-        expect(result).toHaveProperty('Screen Name');
-        expect(result).toHaveProperty('User Name');
-        expect(result).toHaveProperty('Tweet URL');
-        expect(result).toHaveProperty('Posted At');
-    });
+  it('throws for invalid date mapping value', () => {
+    const payload = {
+      ...mockPayload,
+      screenName: 'not-a-date-value'
+    };
 
-    it('should create title from text content', () => {
-        const result = buildProperties(mockPayload, mockPropertyMap);
-        const title = result['Title'] as any;
+    const customMap: AppSettings['propertyMap'] = {
+      ...defaultMap,
+      screenName: { propertyName: 'Screen Date', propertyType: 'date' }
+    };
 
-        expect(title.title[0].text.content).toBe('This is a test tweet with some content');
-    });
+    expect(() => buildProperties(payload, customMap)).toThrow('date 型に変換できない値');
+  });
 
-    it('should truncate long titles', () => {
-        const longText = 'a'.repeat(150);
-        const payload = { ...mockPayload, text: longText };
-        const result = buildProperties(payload, mockPropertyMap);
-        const title = result['Title'] as any;
+  it('truncates title fallback to 120 chars plus ellipsis', () => {
+    const longText = 'a'.repeat(150);
+    const payload = { ...mockPayload, text: longText };
+    const result = buildProperties(payload, defaultMap) as Record<string, any>;
 
-        expect(title.title[0].text.content.length).toBeLessThanOrEqual(123); // 120 + '...'
-        expect(title.title[0].text.content).toContain('...');
-    });
-
-    it('should handle empty text with fallback', () => {
-        const payload = { ...mockPayload, text: '' };
-        const result = buildProperties(payload, mockPropertyMap);
-        const title = result['Title'] as any;
-
-        expect(title.title[0].text.content).toBe('Image');
-    });
-
-    it('should set date property correctly', () => {
-        const result = buildProperties(mockPayload, mockPropertyMap);
-        const date = result['Posted At'] as any;
-
-        expect(date.date.start).toBe('2025-11-24T12:00:00.000Z');
-    });
-
-    it('should set URL property correctly', () => {
-        const result = buildProperties(mockPayload, mockPropertyMap);
-        const url = result['Tweet URL'] as any;
-
-        expect(url.url).toBe('https://x.com/testuser/status/123456789');
-    });
+    expect(result.Name.title[0].text.content.length).toBeLessThanOrEqual(123);
+    expect(result.Name.title[0].text.content).toContain('...');
+  });
 });
