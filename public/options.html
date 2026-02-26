@@ -5,15 +5,14 @@
     <title>X Clipper 設定</title>
     <style>
       body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         margin: 24px;
         color: #1f2933;
         background: #f8fafc;
       }
 
       main {
-        max-width: 480px;
+        max-width: 560px;
         padding: 24px;
         background: #ffffff;
         border-radius: 12px;
@@ -25,6 +24,11 @@
         margin-bottom: 16px;
       }
 
+      h2 {
+        font-size: 1rem;
+        margin: 0 0 8px;
+      }
+
       label {
         display: block;
         font-weight: 600;
@@ -32,7 +36,7 @@
       }
 
       input,
-      textarea,
+      select,
       button {
         width: 100%;
         padding: 10px 12px;
@@ -43,7 +47,7 @@
       }
 
       input:focus,
-      textarea:focus {
+      select:focus {
         outline: none;
         border-color: #2563eb;
         background-color: #ffffff;
@@ -60,10 +64,48 @@
         margin-bottom: 18px;
       }
 
+      .field-row {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+      }
+
+      .field-row .field-grow {
+        flex: 1;
+      }
+
       .helper {
         font-size: 0.8rem;
         color: #64748b;
         margin-top: 4px;
+      }
+
+      .schema-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f8fafc;
+        padding: 10px 12px;
+        max-height: 180px;
+        overflow: auto;
+      }
+
+      .schema-box ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      .schema-box li {
+        font-size: 0.85rem;
+        margin-bottom: 4px;
+      }
+
+      button.fetch-btn {
+        width: auto;
+        min-width: 140px;
+        background: #ffffff;
+        color: #1e40af;
+        border-color: #93c5fd;
+        cursor: pointer;
       }
 
       button[type="submit"] {
@@ -77,6 +119,11 @@
 
       button[type="submit"]:hover {
         background-color: #1d4ed8;
+      }
+
+      button[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
       }
 
       #status {
@@ -102,76 +149,46 @@
               required
             />
             <p class="helper">
-              Notion の統合で発行したシークレット（<code>secret_</code> / <code>ntn_</code>）を入力してください。
+              Notion の統合で発行したシークレット（<code>ntn_</code>）を入力してください。
             </p>
           </div>
           <div class="field">
-            <label for="notionDatabaseId">Notion データベース ID</label>
-            <input
-              id="notionDatabaseId"
-              name="notionDatabaseId"
-              required
-              placeholder="XXXXXXXXXXXXXX"
-            />
+            <div class="field-row">
+              <div class="field-grow">
+                <label for="notionDatabaseId">Notion データベース</label>
+                <select id="notionDatabaseId" name="notionDatabaseId" required>
+                  <option value="">先に「DB一覧を取得」を実行してください</option>
+                </select>
+              </div>
+              <button id="loadDatabasesButton" class="fetch-btn" type="button">DB一覧を取得</button>
+            </div>
             <p class="helper">
-              対象データベースの URL 末尾に含まれる 32 文字の ID またはハイフン付き UUID を入力します。
-            </p>
-          </div>
-          <div class="field">
-            <label for="notionVersion">Notion API バージョン</label>
-            <input
-              id="notionVersion"
-              name="notionVersion"
-              value="2025-09-03"
-              required
-            />
-            <p class="helper">
-              Direct Upload が有効なバージョン（例: <code>2025-09-03</code>）を指定します。
+              Integration に共有されているデータベースのみ表示されます。
             </p>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>プロパティ名マッピング</legend>
+          <legend>プロパティマッピング</legend>
           <div class="field">
-            <label for="titleProperty">タイトル (Notion の Title プロパティ)</label>
-            <input id="titleProperty" name="titleProperty" value="Name" required />
+            <label for="mapTitle">タイトル（ツイート本文の要約）</label>
+            <select id="mapTitle" name="mapTitle" required></select>
           </div>
           <div class="field">
-            <label for="screenNameProperty">表示名 (Screen Name)</label>
-            <input
-              id="screenNameProperty"
-              name="screenNameProperty"
-              value="Screen Name"
-              required
-            />
+            <label for="mapScreenName">表示名（Screen Name）</label>
+            <select id="mapScreenName" name="mapScreenName" required></select>
           </div>
           <div class="field">
-            <label for="userNameProperty">ユーザー名 (＠付き)</label>
-            <input
-              id="userNameProperty"
-              name="userNameProperty"
-              value="Username"
-              required
-            />
+            <label for="mapUserName">ユーザー名（@付き）</label>
+            <select id="mapUserName" name="mapUserName" required></select>
           </div>
           <div class="field">
-            <label for="urlProperty">URL プロパティ</label>
-            <input
-              id="urlProperty"
-              name="urlProperty"
-              value="Tweet URL"
-              required
-            />
+            <label for="mapTweetUrl">URL</label>
+            <select id="mapTweetUrl" name="mapTweetUrl" required></select>
           </div>
           <div class="field">
-            <label for="timestampProperty">投稿日時 (date プロパティ)</label>
-            <input
-              id="timestampProperty"
-              name="timestampProperty"
-              value="Posted At"
-              required
-            />
+            <label for="mapPostedAt">投稿日時</label>
+            <select id="mapPostedAt" name="mapPostedAt" required></select>
           </div>
         </fieldset>
 

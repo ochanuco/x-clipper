@@ -1,4 +1,9 @@
-import type { AppSettings, DownloadedAsset, NotionFileUpload } from '../../types.js';
+import type {
+    AppSettings,
+    DownloadedAsset,
+    NotionFileUpload,
+    NotionPropertyMapping
+} from '../../types.js';
 import type { XPostPayload } from '../x/types.js';
 import { deleteFromCache } from '../storage/cache.js';
 
@@ -146,57 +151,82 @@ function buildCompactTitle(text?: string) {
 export function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
     const properties: Record<string, unknown> = {};
     const fallbackTitle = buildCompactTitle(payload.text);
-
-    const titleKey = map.title?.trim();
-    if (titleKey) {
-        properties[titleKey] = {
-            title: [
-                {
-                    text: { content: fallbackTitle || 'Image' }
-                }
-            ]
-        };
-    }
-
-    const screenNameKey = map.screenName?.trim();
-    if (screenNameKey && payload.screenName) {
-        properties[screenNameKey] = {
-            rich_text: [
-                {
-                    text: { content: payload.screenName }
-                }
-            ]
-        };
-    }
-
-    const userNameKey = map.userName?.trim();
-    if (userNameKey && payload.userName) {
-        properties[userNameKey] = {
-            rich_text: [
-                {
-                    text: { content: payload.userName }
-                }
-            ]
-        };
-    }
-
-    const tweetUrlKey = map.tweetUrl?.trim();
-    if (tweetUrlKey) {
-        properties[tweetUrlKey] = {
-            url: payload.url
-        };
-    }
-
-    const postedAtKey = map.postedAt?.trim();
-    if (postedAtKey && payload.timestamp) {
-        properties[postedAtKey] = {
-            date: {
-                start: payload.timestamp
-            }
-        };
-    }
+    applyMappedProperty(properties, map.title, fallbackTitle || 'Image');
+    applyMappedProperty(properties, map.screenName, payload.screenName);
+    applyMappedProperty(properties, map.userName, payload.userName);
+    applyMappedProperty(properties, map.tweetUrl, payload.url);
+    applyMappedProperty(properties, map.postedAt, payload.timestamp);
 
     return properties;
+}
+
+function applyMappedProperty(
+    properties: Record<string, unknown>,
+    mapping: NotionPropertyMapping | undefined,
+    rawValue: string
+) {
+    if (!mapping) return;
+    const propertyName = mapping.propertyName?.trim();
+    const value = rawValue?.trim();
+    if (!propertyName || !value) return;
+
+    switch (mapping.propertyType) {
+        case 'title':
+            properties[propertyName] = {
+                title: [{ text: { content: value } }]
+            };
+            return;
+        case 'rich_text':
+            properties[propertyName] = {
+                rich_text: [{ text: { content: value } }]
+            };
+            return;
+        case 'select':
+            properties[propertyName] = {
+                select: { name: value }
+            };
+            return;
+        case 'multi_select':
+            properties[propertyName] = {
+                multi_select: [{ name: value }]
+            };
+            return;
+        case 'url':
+            if (!isValidUrl(value)) {
+                throw new Error(`URL 型に無効な値を設定しようとしました: ${propertyName}`);
+            }
+            properties[propertyName] = {
+                url: value
+            };
+            return;
+        case 'date': {
+            const isoDate = normalizeDateValue(value);
+            if (!isoDate) {
+                throw new Error(`date 型に変換できない値です: ${propertyName}`);
+            }
+            properties[propertyName] = {
+                date: {
+                    start: isoDate
+                }
+            };
+            return;
+        }
+    }
+}
+
+function isValidUrl(value: string) {
+    try {
+        new URL(value);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function normalizeDateValue(value: string) {
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp)) return null;
+    return new Date(timestamp).toISOString();
 }
 
 function buildNotionFileSource(asset: DownloadedAsset) {
@@ -345,8 +375,11 @@ export async function createNotionPage({
     avatarAsset: DownloadedAsset | null;
     mediaAssets: DownloadedAsset[];
 }) {
+    const usesDataSourceParent = shouldUseDataSourceParent(settings.notionVersion);
     const requestBody = {
-        parent: { database_id: databaseId },
+        parent: usesDataSourceParent
+            ? { data_source_id: databaseId }
+            : { database_id: databaseId },
         icon: buildIconFromAsset(avatarAsset, payload.avatarUrl),
         cover: buildCoverFromAsset(mediaAssets[0], payload.images?.[0]),
         properties,
@@ -380,11 +413,16 @@ export async function createNotionPage({
             parsed = {};
         }
         if (response.status === 404 || parsed?.code === 'object_not_found') {
-            throw new Error('Notion のデータベースが見つかりません。データベースを integration に共有しているか確認してください。');
+            throw new Error('Notion の保存先が見つかりません。データベース/データソースを integration に共有しているか確認してください。');
         } else if (response.status === 401 || response.status === 403) {
             throw new Error('Notion API キーが無効か権限が不足しています。Options で API キーと DB 共有を確認してください。');
         } else {
             throw new Error(`Notion ページの作成に失敗しました（HTTP ${response.status}）: ${detail}`);
         }
     }
+}
+
+function shouldUseDataSourceParent(notionVersion: string) {
+    const v = notionVersion?.trim() || '1970-01-01';
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= '2025-09-03';
 }
