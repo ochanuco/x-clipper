@@ -53,6 +53,7 @@ const loadDatabasesButton = document.getElementById('loadDatabasesButton') as HT
 const databaseSelect = document.getElementById('notionDatabaseId') as HTMLSelectElement | null;
 
 let currentDatabaseSchema: NotionDatabaseSchema = {};
+let currentDatabaseSchemaSourceId = '';
 let currentDatabases: NotionDatabaseItem[] = [];
 let pendingSettings: AppSettings | null = null;
 let schemaLoadGeneration = 0;
@@ -383,6 +384,7 @@ async function loadSchemaForSelectedDatabase(preferredMap?: NotionPropertyMap) {
     return;
   }
   currentDatabaseSchema = schema;
+  currentDatabaseSchemaSourceId = selectedDatabaseId;
   populateAllMappingSelects(preferredMap);
 }
 
@@ -413,14 +415,21 @@ async function handleLoadDatabases() {
       await loadSchemaForSelectedDatabase(pendingSettings?.propertyMap);
     } else {
       currentDatabaseSchema = {};
+      currentDatabaseSchemaSourceId = '';
       populateAllMappingSelects();
     }
 
     setStatus('データベース一覧を取得しました。', false);
   } catch (error) {
+    if (myGeneration !== databaseLoadGeneration) {
+      return;
+    }
     const message = error instanceof Error ? error.message : 'データベース一覧の取得に失敗しました。';
     setStatus(message, true);
   } finally {
+    if (myGeneration !== databaseLoadGeneration) {
+      return;
+    }
     if (loadDatabasesButton) {
       loadDatabasesButton.disabled = false;
     }
@@ -472,8 +481,14 @@ async function handleSubmit(event: Event) {
   setStatus('保存中...', false);
 
   try {
-    if (Object.keys(currentDatabaseSchema).length === 0) {
+    const hasSchemaForSelectedDatabase =
+      Object.keys(currentDatabaseSchema).length > 0 &&
+      currentDatabaseSchemaSourceId === notionDatabaseId;
+    if (!hasSchemaForSelectedDatabase) {
       await loadSchemaForSelectedDatabase();
+    }
+    if (currentDatabaseSchemaSourceId !== notionDatabaseId) {
+      throw new Error('選択中のデータベースに対応するスキーマを取得できませんでした。');
     }
 
     const propertyMap: NotionPropertyMap = {
