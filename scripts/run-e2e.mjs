@@ -28,7 +28,7 @@ async function main() {
   const tsconfigPath = path.join(repoRoot, 'tests/e2e/tsconfig.json');
   await run(
     'pnpm',
-    ['exec', 'playwright', 'test', '-c', 'tests/e2e/playwright.config.ts'],
+    ['exec', 'node', 'node_modules/@playwright/test/cli.js', 'test', '-c', 'tests/e2e/playwright.config.ts'],
     { PLAYWRIGHT_TSCONFIG: tsconfigPath }
   );
 }
