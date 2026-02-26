@@ -54,15 +54,60 @@ const LOADING_SVG = `
   </svg>
 `;
 
+function findDirectChild(parent: Element, descendant: Element): Element | null {
+    let current: Element | null = descendant;
+    while (current && current.parentElement !== parent) {
+        current = current.parentElement;
+    }
+    return current && current.parentElement === parent ? current : null;
+}
+
+function queryLikeControl(root: ParentNode): Element | null {
+    return root.querySelector('[data-testid="like"], [data-testid="unlike"]');
+}
+
+function placeButtonLeftOfLike(actionArea: Element, wrapper: Element): boolean {
+    const likeButton = queryLikeControl(actionArea);
+    if (!likeButton) return false;
+
+    const likeSlot = findDirectChild(actionArea, likeButton);
+    if (!likeSlot) return false;
+    actionArea.insertBefore(wrapper, likeSlot);
+    return true;
+}
+
+function scoreActionArea(group: Element): number {
+    let score = 0;
+    if (group.querySelector('[data-testid="reply"]')) score += 2;
+    if (group.querySelector('[data-testid="retweet"]')) score += 2;
+    if (queryLikeControl(group)) score += 3;
+    if (group.querySelector('[data-testid="bookmark"]')) score += 1;
+    return score;
+}
+
+function findTweetActionArea(article: Element): Element | null {
+    const explicitActionArea = article.querySelector('[data-testid="tweetAction"]');
+    if (explicitActionArea && queryLikeControl(explicitActionArea)) return explicitActionArea;
+
+    const groups = Array.from(article.querySelectorAll('[role="group"]'));
+    const sameArticleGroups = groups.filter((group) => group.closest('article') === article);
+    const candidateGroups = sameArticleGroups.filter((group) => queryLikeControl(group));
+    if (candidateGroups.length > 0) {
+        const sorted = candidateGroups.sort((a, b) => scoreActionArea(b) - scoreActionArea(a));
+        if (scoreActionArea(sorted[0]) > 0) return sorted[0];
+    }
+
+    const ariaLabeledGroup = article.querySelector('div[aria-label]');
+    if (ariaLabeledGroup && queryLikeControl(ariaLabeledGroup)) return ariaLabeledGroup;
+    return null;
+}
+
 export function insertSaveButton(article: Element) {
     console.debug('x-clipper: insertSaveButton called for article', article);
     // avoid duplicating
     if (article.querySelector('.x-clipper-save-button')) return;
 
-    const actionArea =
-        article.querySelector('[role="group"]') ??
-        article.querySelector('[data-testid="tweetAction"]') ??
-        article.querySelector('div[aria-label]');
+    const actionArea = findTweetActionArea(article);
 
     // Inject styles for rotation if not already present
     if (!document.getElementById('x-clipper-styles')) {
@@ -88,6 +133,7 @@ export function insertSaveButton(article: Element) {
     wrapper.style.isolation = 'isolate'; // ensure a new stacking context above overlays (CI flakiness)
     wrapper.style.zIndex = '2147483647';
     wrapper.style.pointerEvents = 'auto';
+    wrapper.style.marginLeft = '-4px';
     wrapper.style.marginRight = '6px';
     wrapper.appendChild(btn);
     console.debug('x-clipper: created button element');
@@ -133,44 +179,7 @@ export function insertSaveButton(article: Element) {
     });
 
     console.debug('x-clipper: attempting placement');
-    // Strategy: find the rightmost interactive element (likely the ellipsis), then
-    // insert before its previous interactive sibling if present.
-    let placed = false;
-    try {
-        const candidates = Array.from(article.querySelectorAll('button, [role="button"], a')) as Element[];
-        if (candidates.length > 0) {
-            // Measure rightmost position
-            let rightmost: Element | null = null;
-            let maxRight = -Infinity;
-            for (const el of candidates) {
-                try {
-                    const rect = el.getBoundingClientRect();
-                    if (rect && rect.right > maxRight) {
-                        maxRight = rect.right;
-                        rightmost = el;
-                    }
-                } catch {
-                    // ignore
-                }
-            }
-
-            if (rightmost && rightmost.parentElement) {
-                // find previous interactive sibling (skip text nodes)
-                let sibling: Element | null = rightmost.previousElementSibling;
-                while (sibling && !/^(BUTTON|A)$/.test(sibling.tagName) && sibling.getAttribute('role') !== 'button') {
-                    sibling = sibling.previousElementSibling as Element | null;
-                }
-
-                const insertBeforeEl = sibling ?? rightmost;
-                if (insertBeforeEl.parentElement) {
-                    insertBeforeEl.parentElement.insertBefore(wrapper, insertBeforeEl);
-                    placed = true;
-                }
-            }
-        }
-    } catch (err) {
-        console.warn('placement by bounding box failed', err);
-    }
+    const placed = actionArea ? placeButtonLeftOfLike(actionArea, wrapper) : false;
 
     if (!placed) {
         console.debug('x-clipper: fallback placement used');
