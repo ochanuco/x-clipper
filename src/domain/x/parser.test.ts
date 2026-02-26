@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { normalizeImageUrl, collectFromArticle } from './parser.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe('normalizeImageUrl', () => {
   it('should return empty string for blob URLs', () => {
@@ -114,5 +120,29 @@ describe('collectFromArticle', () => {
     const result = collectFromArticle(article);
 
     expect(result?.text).toBe('Check this https://example.com');
+  });
+
+  it('should parse cashtag + quoted post + image from captured fixture', () => {
+    const fixtureHtml = readFileSync(
+      path.resolve(__dirname, '../../../tests/fixtures/x/2025074037639234017/index.html'),
+      'utf-8'
+    );
+    const fixtureDom = new JSDOM(fixtureHtml, { url: 'https://x.com/ochanuco/status/2025074037639234017' });
+    document = fixtureDom.window.document;
+    globalThis.document = document;
+    globalThis.window = fixtureDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(result.userName).toBe('@ochanuco');
+    expect(result.text).toContain('$fric');
+    expect(result.url).toContain('/status/2025074037639234017');
+    expect(result.images.length).toBeGreaterThanOrEqual(1);
+    expect(result.images.some((url) => url.includes('https://x.com/images/media.jpg'))).toBe(true);
+    expect(result.images.some((url) => url.includes('pbs.twimg.com/media/'))).toBe(true);
   });
 });
