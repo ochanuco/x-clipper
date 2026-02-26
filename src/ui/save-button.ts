@@ -7,28 +7,53 @@ export function createSaveButton(): HTMLButtonElement {
     btn.setAttribute('aria-label', '保存');
     // Icon-style circular button (compact)
     btn.innerHTML = `
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke="#111827" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="#fff" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5h-.75A2.25 2.25 0 0 0 4.5 9.75v7.5a2.25 2.25 0 0 0 2.25 2.25h7.5a2.25 2.25 0 0 0 2.25-2.25v-7.5a2.25 2.25 0 0 0-2.25-2.25h-.75m0-3-3-3m0 0-3 3m3-3v11.25m6-2.25h.75a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25h-7.5a2.25 2.25 0 0 1-2.25-2.25v-.75" />
     </svg>
   `;
     btn.style.display = 'inline-flex';
     btn.style.alignItems = 'center';
     btn.style.justifyContent = 'center';
-    btn.style.width = '30px';
-    btn.style.height = '30px';
+    btn.style.width = '32px';
+    btn.style.height = '32px';
     btn.style.padding = '0';
+    btn.style.lineHeight = '0';
     // Insert button before overflow menu: use right margin to maintain spacing
     btn.style.marginLeft = '0';
     btn.style.marginRight = '0';
     btn.style.borderRadius = '999px';
-    btn.style.border = '1px solid rgba(0,0,0,0.08)';
-    btn.style.background = 'white';
+    btn.style.border = 'none';
+    btn.style.background = 'transparent';
     btn.style.position = 'relative';
     btn.style.pointerEvents = 'auto';
     btn.style.isolation = 'isolate';
     btn.style.zIndex = '2147483647';
     btn.style.cursor = 'pointer';
-    btn.style.boxShadow = '0 1px 0 rgba(0,0,0,0.03)';
+    btn.style.boxShadow = 'none';
+    btn.style.color = 'rgba(17, 24, 39, 0.9)';
+    btn.style.transition = 'background-color 120ms ease, color 120ms ease';
+
+    const setIdleStyle = () => {
+        btn.style.background = 'transparent';
+        btn.style.color = 'rgba(17, 24, 39, 0.9)';
+    };
+    const setHoverStyle = () => {
+        if (btn.disabled) return;
+        btn.style.background = 'rgba(29, 155, 240, 0.12)';
+        btn.style.color = 'rgb(29, 155, 240)';
+    };
+    const setActiveStyle = () => {
+        if (btn.disabled) return;
+        btn.style.background = 'rgba(29, 155, 240, 0.2)';
+        btn.style.color = 'rgb(29, 155, 240)';
+    };
+
+    btn.addEventListener('mouseenter', setHoverStyle);
+    btn.addEventListener('mouseleave', setIdleStyle);
+    btn.addEventListener('mousedown', setActiveStyle);
+    btn.addEventListener('mouseup', setHoverStyle);
+    btn.addEventListener('blur', setIdleStyle);
+
     return btn;
 }
 
@@ -54,21 +79,93 @@ const LOADING_SVG = `
   </svg>
 `;
 
+function findDirectChild(parent: Element, descendant: Element): Element | null {
+    let current: Element | null = descendant;
+    while (current && current.parentElement !== parent) {
+        current = current.parentElement;
+    }
+    return current && current.parentElement === parent ? current : null;
+}
+
+function queryLikeControl(root: ParentNode): Element | null {
+    return root.querySelector('[data-testid="like"], [data-testid="unlike"]');
+}
+
+function findInsertionPointForLike(root: Element): { parent: Element; before: Element } | null {
+    const likeButton = queryLikeControl(root);
+    if (!likeButton) return null;
+
+    let slot: Element | null = likeButton;
+    while (slot && slot.parentElement && slot.parentElement !== root) {
+        const parent: Element = slot.parentElement;
+        const siblings = Array.from(parent.children) as Element[];
+        const hasSiblingAction = siblings.some(
+            (child) =>
+                child !== slot &&
+                !!child.querySelector(
+                    '[data-testid="reply"], [data-testid="retweet"], [data-testid="like"], [data-testid="unlike"], [data-testid="bookmark"], [data-testid="analytics"]'
+                )
+        );
+        if (hasSiblingAction) {
+            return { parent, before: slot };
+        }
+        slot = parent;
+    }
+
+    const likeSlot = findDirectChild(root, likeButton);
+    if (!likeSlot) return null;
+    return { parent: root, before: likeSlot };
+}
+
+function placeButtonLeftOfLike(actionArea: Element, wrapper: Element): boolean {
+    const insertion = findInsertionPointForLike(actionArea);
+    if (!insertion) return false;
+    insertion.parent.insertBefore(wrapper, insertion.before);
+    return true;
+}
+
+function scoreActionArea(group: Element): number {
+    let score = 0;
+    if (group.querySelector('[data-testid="reply"]')) score += 2;
+    if (group.querySelector('[data-testid="retweet"]')) score += 2;
+    if (queryLikeControl(group)) score += 3;
+    if (group.querySelector('[data-testid="bookmark"]')) score += 1;
+    return score;
+}
+
+function findTweetActionArea(article: Element): Element | null {
+    const explicitActionAreas = Array.from(article.querySelectorAll('[data-testid="tweetAction"]')).filter(
+        (el) => el.closest('article') === article && queryLikeControl(el)
+    );
+    if (explicitActionAreas.length > 0) {
+        const sorted = explicitActionAreas.sort((a, b) => scoreActionArea(b) - scoreActionArea(a));
+        if (scoreActionArea(sorted[0]) > 0) return sorted[0];
+    }
+
+    const groups = Array.from(article.querySelectorAll('[role="group"]'));
+    const sameArticleGroups = groups.filter((group) => group.closest('article') === article);
+    const candidateGroups = sameArticleGroups.filter((group) => queryLikeControl(group));
+    if (candidateGroups.length > 0) {
+        const sorted = candidateGroups.sort((a, b) => scoreActionArea(b) - scoreActionArea(a));
+        if (scoreActionArea(sorted[0]) > 0) return sorted[0];
+    }
+
+    const ariaLabeledGroup = article.querySelector('div[aria-label]');
+    if (ariaLabeledGroup && queryLikeControl(ariaLabeledGroup)) return ariaLabeledGroup;
+    return null;
+}
+
 export function insertSaveButton(article: Element) {
     console.debug('x-clipper: insertSaveButton called for article', article);
     // avoid duplicating
     if (article.querySelector('.x-clipper-save-button')) return;
 
-    const actionArea =
-        article.querySelector('[role="group"]') ??
-        article.querySelector('[data-testid="tweetAction"]') ??
-        article.querySelector('div[aria-label]');
+    const actionArea = findTweetActionArea(article);
 
-    // Inject styles for rotation if not already present
-    if (!document.getElementById('x-clipper-styles')) {
-        const style = document.createElement('style');
-        style.id = 'x-clipper-styles';
-        style.textContent = `
+    // Keep styles up-to-date even when the extension is reloaded on an open tab.
+    const style = (document.getElementById('x-clipper-styles') as HTMLStyleElement | null) ?? document.createElement('style');
+    style.id = 'x-clipper-styles';
+    style.textContent = `
       @keyframes x-clipper-spin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
@@ -77,6 +174,7 @@ export function insertSaveButton(article: Element) {
         animation: x-clipper-spin 1s linear infinite;
       }
     `;
+    if (!style.parentElement) {
         document.head.appendChild(style);
     }
 
@@ -88,7 +186,8 @@ export function insertSaveButton(article: Element) {
     wrapper.style.isolation = 'isolate'; // ensure a new stacking context above overlays (CI flakiness)
     wrapper.style.zIndex = '2147483647';
     wrapper.style.pointerEvents = 'auto';
-    wrapper.style.marginRight = '6px';
+    wrapper.style.marginLeft = '-4px';
+    wrapper.style.marginRight = '8px';
     wrapper.appendChild(btn);
     console.debug('x-clipper: created button element');
 
@@ -133,44 +232,7 @@ export function insertSaveButton(article: Element) {
     });
 
     console.debug('x-clipper: attempting placement');
-    // Strategy: find the rightmost interactive element (likely the ellipsis), then
-    // insert before its previous interactive sibling if present.
-    let placed = false;
-    try {
-        const candidates = Array.from(article.querySelectorAll('button, [role="button"], a')) as Element[];
-        if (candidates.length > 0) {
-            // Measure rightmost position
-            let rightmost: Element | null = null;
-            let maxRight = -Infinity;
-            for (const el of candidates) {
-                try {
-                    const rect = el.getBoundingClientRect();
-                    if (rect && rect.right > maxRight) {
-                        maxRight = rect.right;
-                        rightmost = el;
-                    }
-                } catch {
-                    // ignore
-                }
-            }
-
-            if (rightmost && rightmost.parentElement) {
-                // find previous interactive sibling (skip text nodes)
-                let sibling: Element | null = rightmost.previousElementSibling;
-                while (sibling && !/^(BUTTON|A)$/.test(sibling.tagName) && sibling.getAttribute('role') !== 'button') {
-                    sibling = sibling.previousElementSibling as Element | null;
-                }
-
-                const insertBeforeEl = sibling ?? rightmost;
-                if (insertBeforeEl.parentElement) {
-                    insertBeforeEl.parentElement.insertBefore(wrapper, insertBeforeEl);
-                    placed = true;
-                }
-            }
-        }
-    } catch (err) {
-        console.warn('placement by bounding box failed', err);
-    }
+    const placed = actionArea ? placeButtonLeftOfLike(actionArea, wrapper) : false;
 
     if (!placed) {
         console.debug('x-clipper: fallback placement used');
