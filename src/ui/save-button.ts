@@ -14,14 +14,14 @@ export function createSaveButton(): HTMLButtonElement {
     btn.style.display = 'inline-flex';
     btn.style.alignItems = 'center';
     btn.style.justifyContent = 'center';
-    btn.style.width = '30px';
-    btn.style.height = '30px';
+    btn.style.width = '32px';
+    btn.style.height = '32px';
     btn.style.padding = '0';
     // Insert button before overflow menu: use right margin to maintain spacing
     btn.style.marginLeft = '0';
     btn.style.marginRight = '0';
     btn.style.borderRadius = '999px';
-    btn.style.border = '1px solid rgba(0,0,0,0.08)';
+    btn.style.border = '1px solid rgba(15, 23, 42, 0.18)';
     btn.style.background = 'white';
     btn.style.position = 'relative';
     btn.style.pointerEvents = 'auto';
@@ -29,6 +29,7 @@ export function createSaveButton(): HTMLButtonElement {
     btn.style.zIndex = '2147483647';
     btn.style.cursor = 'pointer';
     btn.style.boxShadow = '0 1px 0 rgba(0,0,0,0.03)';
+    btn.style.transition = 'transform 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease';
     return btn;
 }
 
@@ -149,6 +150,18 @@ export function insertSaveButton(article: Element) {
       .x-clipper-spin {
         animation: x-clipper-spin 1s linear infinite;
       }
+      .x-clipper-save-button:hover:not(:disabled) {
+        transform: scale(1.06);
+        background: rgba(37, 99, 235, 0.08);
+        border-color: rgba(37, 99, 235, 0.7);
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.18);
+      }
+      .x-clipper-save-button:hover:not(:disabled) svg path:first-child {
+        stroke: #2563eb;
+      }
+      .x-clipper-save-button:active:not(:disabled) {
+        transform: scale(0.98);
+      }
     `;
         document.head.appendChild(style);
     }
@@ -162,7 +175,7 @@ export function insertSaveButton(article: Element) {
     wrapper.style.zIndex = '2147483647';
     wrapper.style.pointerEvents = 'auto';
     wrapper.style.marginLeft = '-4px';
-    wrapper.style.marginRight = '6px';
+    wrapper.style.marginRight = '8px';
     wrapper.appendChild(btn);
     console.debug('x-clipper: created button element');
 
