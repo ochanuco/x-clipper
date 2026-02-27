@@ -26,7 +26,11 @@ jobs:
         run: pnpm run build:prod
       - name: Create zip archive
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
           ZIP_NAME="x-clipper-v${VERSION}.zip"
           (cd dist && zip -r "../${ZIP_NAME}" .)
           echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"

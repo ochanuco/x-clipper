@@ -32,6 +32,11 @@ async function run() {
   if (typeof manifest.version !== 'string') {
     throw new Error('manifest.base.json version is missing.');
   }
+  if (packageJson.version !== manifest.version) {
+    throw new Error(
+      `Version mismatch: package.json=${packageJson.version}, manifest.base.json=${manifest.version}`
+    );
+  }
 
   const nextVersion = bumpPatch(packageJson.version);
   packageJson.version = nextVersion;

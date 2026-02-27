@@ -14,9 +14,7 @@ const DEV_HOST_PERMISSIONS = [
   'https://twitter.com/*',
   'https://*.twimg.com/*',
   'https://video.twimg.com/*',
-  'https://api.notion.com/*',
-  'http://localhost:8787/*',
-  'http://127.0.0.1:8787/*'
+  'https://api.notion.com/*'
 ];
 
 const PROD_HOST_PERMISSIONS = [
@@ -28,11 +26,17 @@ const PROD_HOST_PERMISSIONS = [
   'https://api.notion.com/*'
 ];
 
+const LOCAL_HOST_PERMISSIONS = [
+  ...DEV_HOST_PERMISSIONS,
+  'http://localhost:8787/*',
+  'http://127.0.0.1:8787/*'
+];
+
 function getEnv() {
   const arg = process.argv.find((value) => value.startsWith('--env='));
-  const env = arg ? arg.slice('--env='.length) : 'dev';
-  if (env !== 'dev' && env !== 'prod') {
-    throw new Error(`Unsupported env: ${env}. Use --env=dev or --env=prod.`);
+  const env = arg ? arg.slice('--env='.length) : 'local';
+  if (env !== 'local' && env !== 'dev' && env !== 'prod') {
+    throw new Error(`Unsupported env: ${env}. Use --env=local, --env=dev, or --env=prod.`);
   }
   return env;
 }
@@ -42,7 +46,15 @@ async function run() {
   const raw = await readFile(baseManifestPath, 'utf8');
   const baseManifest = JSON.parse(raw);
 
-  const host_permissions = env === 'prod' ? PROD_HOST_PERMISSIONS : DEV_HOST_PERMISSIONS;
+  const host_permissions = (() => {
+    if (env === 'prod') {
+      return PROD_HOST_PERMISSIONS;
+    }
+    if (env === 'dev') {
+      return DEV_HOST_PERMISSIONS;
+    }
+    return LOCAL_HOST_PERMISSIONS;
+  })();
   const manifest = { ...baseManifest, host_permissions };
 
   await writeFile(outputManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
