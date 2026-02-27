@@ -1,0 +1,47 @@
+name: Create Release PR
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-release-pr:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Bump patch version
+        id: bump
+        run: |
+          NEXT_VERSION=$(node scripts/bump-version.mjs)
+          echo "next_version=${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Create or update release PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: release/prepare
+          base: main
+          delete-branch: false
+          title: "chore: release v${{ steps.bump.outputs.next_version }}"
+          commit-message: "chore: リリース準備 v${{ steps.bump.outputs.next_version }}"
+          body: |
+            ## 概要
+            - パッチバージョンを `v${{ steps.bump.outputs.next_version }}` に更新します
+            - 対象ファイル:
+              - `package.json`
+              - `public/manifest.base.json`
+
+            ## リリース手順
+            - このPRを `main` にマージすると、タグ作成ワークフローが動作します
+            - タグ作成後に `Build Release Artifact` が実行され、GitHub Release が作成されます
+          labels: |
+            release
+          add-paths: |
+            package.json
+            public/manifest.base.json
