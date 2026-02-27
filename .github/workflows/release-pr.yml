@@ -7,7 +7,15 @@ on:
 
 jobs:
   create-release-pr:
-    if: github.actor != 'github-actions[bot]'
+    if: >
+      github.actor != 'github-actions[bot]' &&
+      !startsWith(github.event.head_commit.message, 'release v') &&
+      !startsWith(github.event.head_commit.message, 'リリース準備 v') &&
+      !startsWith(github.event.head_commit.message, 'chore: release v') &&
+      !startsWith(github.event.head_commit.message, 'chore: リリース準備 v')
+    concurrency:
+      group: release-pr-main
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -28,8 +36,8 @@ jobs:
           branch: release/prepare
           base: main
           delete-branch: false
-          title: "chore: release v${{ steps.bump.outputs.next_version }}"
-          commit-message: "chore: リリース準備 v${{ steps.bump.outputs.next_version }}"
+          title: "release v${{ steps.bump.outputs.next_version }}"
+          commit-message: "リリース準備 v${{ steps.bump.outputs.next_version }}"
           body: |
             ## 概要
             - パッチバージョンを `v${{ steps.bump.outputs.next_version }}` に更新します
