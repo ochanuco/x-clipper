@@ -32,6 +32,7 @@
     "downloads"
   ],
   "host_permissions": [
+    "https://t.co/*",
     "https://x.com/*",
     "https://twitter.com/*",
     "https://*.twimg.com/*",

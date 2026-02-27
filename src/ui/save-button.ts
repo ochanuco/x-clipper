@@ -79,6 +79,41 @@ const LOADING_SVG = `
   </svg>
 `;
 
+function isContextInvalidatedError(error: unknown) {
+    const message = (error instanceof Error ? error.message : String(error ?? '')).toLowerCase();
+    const runtimeMessage = chrome.runtime?.lastError?.message?.toLowerCase() ?? '';
+    const combined = `${message}\n${runtimeMessage}`;
+    return (
+        combined.includes('extension context invalidated') ||
+        combined.includes('receiving end does not exist') ||
+        combined.includes('could not establish connection')
+    );
+}
+
+function sendClipRequest(payload: ReturnType<typeof collectFromArticle>) {
+    if (!payload) {
+        return Promise.resolve({ success: false, error: 'missing_payload' });
+    }
+    if (typeof chrome === 'undefined' || !chrome.runtime?.id) {
+        return Promise.reject(new Error('Extension context invalidated.'));
+    }
+
+    return new Promise<{ success?: boolean; error?: string }>((resolve, reject) => {
+        try {
+            chrome.runtime.sendMessage({ type: 'CLIP_X_POST', data: payload }, (resp) => {
+                const lastErrorMessage = chrome.runtime.lastError?.message;
+                if (lastErrorMessage) {
+                    reject(new Error(lastErrorMessage));
+                    return;
+                }
+                resolve((resp ?? {}) as { success?: boolean; error?: string });
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
 function findDirectChild(parent: Element, descendant: Element): Element | null {
     let current: Element | null = descendant;
     while (current && current.parentElement !== parent) {
@@ -210,24 +245,26 @@ export function insertSaveButton(article: Element) {
                 return;
             }
 
-            chrome.runtime.sendMessage({ type: 'CLIP_X_POST', data: payload }, (resp) => {
-                if (chrome.runtime.lastError) console.warn('sendMessage error', chrome.runtime.lastError.message);
-                if (resp && resp.success) {
-                    btn.innerHTML = SUCCESS_SVG;
-                    btn.disabled = true; // Prevent duplicate saves
-                    btn.style.opacity = '1'; // Full opacity for success
-                } else {
-                    btn.innerHTML = FAILURE_SVG;
-                    console.warn('clip failed', resp);
-                    btn.disabled = false; // Allow retry
-                    btn.style.opacity = originalOpacity;
-                }
-            });
+            const resp = await sendClipRequest(payload);
+            if (resp && resp.success) {
+                btn.innerHTML = SUCCESS_SVG;
+                btn.disabled = true; // Prevent duplicate saves
+                btn.style.opacity = '1'; // Full opacity for success
+                btn.title = '';
+            } else {
+                btn.innerHTML = FAILURE_SVG;
+                console.warn('clip failed', resp);
+                btn.disabled = false; // Allow retry
+                btn.style.opacity = originalOpacity;
+            }
         } catch (err) {
             console.warn('clip button error', err);
             btn.innerHTML = FAILURE_SVG;
             btn.disabled = false; // Allow retry
             btn.style.opacity = originalOpacity;
+            if (isContextInvalidatedError(err)) {
+                btn.title = '拡張機能が更新されたため、ページを再読み込みしてください。';
+            }
         }
     });
 
