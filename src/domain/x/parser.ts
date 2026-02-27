@@ -144,6 +144,112 @@ function collectMediaUrls(article: Element, avatarUrl: string | null) {
     return Array.from(urls).slice(0, MAX_IMAGES);
 }
 
+function extractExpandedAnchorUrl(anchor: HTMLAnchorElement) {
+    const rawHref = anchor.getAttribute('href')?.trim() ?? '';
+    const anchorText = (anchor.textContent ?? '').replace(/\s+/g, '').trim();
+    const visibleUrlCandidate = normalizeVisibleUrlText(anchorText);
+    const looksTruncated = /(?:\.{3}|…)$/.test(anchorText);
+    const looksProtocolOnly = /^https?:\/\/$/i.test(anchorText);
+    const looksLikeUrlText = /^(?:https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(anchorText);
+    const hasUsefulAnchorText =
+        Boolean(anchorText) &&
+        !looksProtocolOnly &&
+        !looksTruncated &&
+        looksLikeUrlText;
+    if (hasUsefulAnchorText) {
+        return null;
+    }
+
+    const candidateAttributes = [
+        anchor.getAttribute('title'),
+        anchor.getAttribute('data-expanded-url'),
+        anchor.getAttribute('data-full-url'),
+        anchor.getAttribute('aria-label')
+    ];
+    const nestedCandidates = Array.from(
+        anchor.querySelectorAll('[title], [data-expanded-url], [data-full-url], [aria-label]')
+    );
+    for (const node of nestedCandidates) {
+        candidateAttributes.push(
+            node.getAttribute('title'),
+            node.getAttribute('data-expanded-url'),
+            node.getAttribute('data-full-url'),
+            node.getAttribute('aria-label')
+        );
+    }
+
+    for (const candidate of candidateAttributes) {
+        const value = candidate?.trim();
+        if (!value) continue;
+        if (/^https?:\/\//i.test(value)) {
+            try {
+                const parsed = new URL(value);
+                if (parsed.hostname !== 't.co') {
+                    return parsed.toString();
+                }
+            } catch {
+                // ignore parse errors
+            }
+        }
+        if (/^(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(value)) {
+            return value.startsWith('www.') ? `https://${value}` : `https://${value}`;
+        }
+    }
+
+    if (rawHref) {
+        if (visibleUrlCandidate) {
+            return visibleUrlCandidate;
+        }
+        try {
+            const parsed = new URL(rawHref, 'https://x.com');
+            if (parsed.hostname === 't.co') {
+                return parsed.toString();
+            }
+        } catch {
+            // ignore parse errors
+        }
+    }
+
+    if (!rawHref) return null;
+    try {
+        const parsed = new URL(rawHref, 'https://x.com');
+        if (
+            parsed.hostname === 't.co' ||
+            parsed.hostname === 'x.com' ||
+            parsed.hostname === 'twitter.com'
+        ) {
+            return null;
+        }
+        return parsed.toString();
+    } catch {
+        return null;
+    }
+}
+
+function normalizeVisibleUrlText(value: string) {
+    if (!value) return null;
+    if (value.startsWith('@')) return null;
+    const hasEllipsis = /(?:\.{3}|…)+$/.test(value);
+    const cleaned = value.replace(/(?:\.{3}|…)+$/g, '').replace(/[)\]}>,.!?;:、。！？]+$/gu, '');
+    if (!cleaned) return null;
+    const withScheme = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
+    try {
+        const parsed = new URL(withScheme);
+        if (parsed.hostname === 't.co') return null;
+        if (!parsed.hostname.includes('.')) return null;
+        if (hasEllipsis) {
+            const segments = parsed.pathname.split('/').filter(Boolean);
+            const lastSegment = segments.at(-1) ?? '';
+            const isLongNumericId = /^\d{8,}$/.test(lastSegment);
+            const hasQuery = parsed.searchParams.size > 0;
+            if (!isLongNumericId && !hasQuery) return null;
+        }
+        return withScheme;
+    } catch {
+        return null;
+    }
+}
+
 export function collectFromArticle(article: Element): XPostPayload | null {
     const hasTweetContent = Boolean(
         article.querySelector(
@@ -189,27 +295,66 @@ export function collectFromArticle(article: Element): XPostPayload | null {
             return '';
         }
         const parts: string[] = [];
+        const appendPart = (part: string) => {
+            if (!part) return;
+            const prev = parts.at(-1);
+            if (!prev) {
+                parts.push(part);
+                return;
+            }
+            const prevLast = prev.slice(-1);
+            const nextFirst = part[0];
+            const needsSpace =
+                !prev.endsWith('://') &&
+                prevLast !== '\n' &&
+                nextFirst !== '\n' &&
+                !/\s/.test(prevLast) &&
+                !/\s/.test(nextFirst) &&
+                !/[,.;:!?)}\]、。！？]/u.test(nextFirst);
+            if (needsSpace) {
+                parts.push(' ');
+            }
+            parts.push(part);
+        };
+        const fallbackAnchors = new WeakSet<HTMLAnchorElement>();
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
         let node = walker.nextNode();
         while (node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                const text = (node.textContent ?? '').replace(/[\r\n]+/g, ' ');
-                parts.push(text);
+                const parent = node.parentElement;
+                const anchor = parent?.closest('a');
+                if (anchor && fallbackAnchors.has(anchor)) {
+                    node = walker.nextNode();
+                    continue;
+                }
+                const text = (node.textContent ?? '').replace(/\r/g, '');
+                if (!text.trim()) {
+                    node = walker.nextNode();
+                    continue;
+                }
+                appendPart(text);
             } else if (node.nodeType === Node.ELEMENT_NODE) {
                 const element = node as Element;
                 if (element.tagName === 'IMG') {
                     const alt = element.getAttribute('alt');
                     if (alt) {
-                        parts.push(alt);
+                        appendPart(alt);
                     }
                 } else if (element.tagName === 'BR') {
-                    parts.push('\n');
+                    appendPart('\n');
+                } else if (element.tagName === 'A') {
+                    const expandedUrl = extractExpandedAnchorUrl(element as HTMLAnchorElement);
+                    if (expandedUrl) {
+                        appendPart(expandedUrl);
+                        fallbackAnchors.add(element as HTMLAnchorElement);
+                    }
                 }
             }
             node = walker.nextNode();
         }
         const collapsed = parts.join('').replace(/[^\S\n]+/g, ' ');
         return collapsed
+            .replace(/https:\/\/@/g, '@')
             .split('\n')
             .map((line) => line.trim())
             .join('\n')

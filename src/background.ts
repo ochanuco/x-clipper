@@ -185,23 +185,27 @@ async function clipPostToNotion(
   settings: AppSettings,
   post: XPostPayload
 ): Promise<void> {
+  const normalizedPost = await normalizePostTextUrls(post);
   const databaseId = normalizeDatabaseId(settings.notionDatabaseId);
   const propertyNames = {
     ...settings.propertyMap,
-    ...(post.propertyMap ?? {})
+    ...(normalizedPost.propertyMap ?? {})
   };
 
   let avatarAsset: DownloadedAsset | null = null;
-  if (post.avatarUrl) {
+  if (normalizedPost.avatarUrl) {
     try {
-      avatarAsset = await downloadAsset(post.avatarUrl, 'avatar');
+      avatarAsset = await downloadAsset(normalizedPost.avatarUrl, 'avatar');
     } catch (error) {
-      console.warn('アバター画像の取得に失敗しました', post.avatarUrl, error);
+      console.warn('アバター画像の取得に失敗しました', normalizedPost.avatarUrl, error);
     }
   }
 
   const mediaAssets: DownloadedAsset[] = [];
-  for (const [index, url] of post.images.entries()) {
+  for (const [index, url] of normalizedPost.images.entries()) {
+    if (isVideoUrl(url)) {
+      continue;
+    }
     try {
       const asset = await downloadAsset(url, `media-${index + 1}`);
       mediaAssets.push(asset);
@@ -230,8 +234,8 @@ async function clipPostToNotion(
     await createNotionPage({
       settings,
       databaseId,
-      payload: post,
-      properties: buildProperties(post, propertyNames),
+      payload: normalizedPost,
+      properties: buildProperties(normalizedPost, propertyNames),
       avatarAsset,
       mediaAssets
     });
@@ -244,6 +248,92 @@ async function clipPostToNotion(
       error instanceof Error ? error.message : 'Notion への保存中にエラーが発生しました。';
     await showNotification(message, true);
     throw new AlreadyNotifiedError(message, error);
+  }
+}
+
+async function normalizePostTextUrls(post: XPostPayload): Promise<XPostPayload> {
+  const text = await expandTcoUrls(post.text);
+  if (text === post.text) return post;
+  return { ...post, text };
+}
+
+async function expandTcoUrls(text: string): Promise<string> {
+  if (!text) return text;
+  const matches = Array.from(new Set(text.match(/https?:\/\/t\.co\/[A-Za-z0-9]+/g) ?? []));
+  if (matches.length === 0) return text;
+
+  const resolvedMap = new Map<string, string>();
+  await Promise.all(
+    matches.map(async (shortUrl) => {
+      try {
+        const resolved = await resolveRedirectLocation(shortUrl);
+        resolvedMap.set(shortUrl, resolved);
+      } catch {
+        resolvedMap.set(shortUrl, shortUrl);
+      }
+    })
+  );
+
+  let normalized = text;
+  for (const [shortUrl, finalUrl] of resolvedMap.entries()) {
+    normalized = normalized.split(shortUrl).join(finalUrl);
+  }
+  return normalized;
+}
+
+async function resolveRedirectLocation(shortUrl: string): Promise<string> {
+  let currentUrl = shortUrl;
+  const maxHops = 5;
+
+  for (let i = 0; i < maxHops; i += 1) {
+    const response = await fetch(currentUrl, {
+      method: 'GET',
+      redirect: 'manual',
+      credentials: 'omit'
+    });
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) return currentUrl;
+      const nextUrl = new URL(location, currentUrl).toString();
+      const nextHost = new URL(nextUrl).hostname.toLowerCase();
+      // t.co から外に出た時点で十分（以降は host_permissions の外で失敗しやすい）
+      if (nextHost !== 't.co') {
+        return nextUrl;
+      }
+      currentUrl = nextUrl;
+      continue;
+    }
+
+    if (response.type === 'opaqueredirect') {
+      return await resolveByFollow(shortUrl);
+    }
+
+    return response.url || currentUrl;
+  }
+
+  return currentUrl;
+}
+
+async function resolveByFollow(url: string): Promise<string> {
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      credentials: 'omit'
+    });
+    return response.url || url;
+  } catch {
+    return url;
+  }
+}
+
+function isVideoUrl(url: string): boolean {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    return /\.(mp4|mov|m4v|webm|ogv)$/i.test(pathname);
+  } catch {
+    return false;
   }
 }
 
@@ -332,7 +422,7 @@ try {
     }
   });
 } catch (err) {
-  console.warn('chrome.alarms not available, skipping scheduled cache cleanup', err);
+  void err;
 }
 
 // Run a cleanup on startup of the service worker

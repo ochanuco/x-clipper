@@ -9,24 +9,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 describe('normalizeImageUrl', () => {
-  it('should return empty string for blob URLs', () => {
+  it('blob URL は空文字を返す', () => {
     expect(normalizeImageUrl('blob:https://x.com/abc123')).toBe('');
   });
 
-  it('should add https: prefix for protocol-relative URLs', () => {
+  it('プロトコル相対URLに https: を補完する', () => {
     expect(normalizeImageUrl('//pbs.twimg.com/media/test.jpg')).toBe('https://pbs.twimg.com/media/test.jpg');
   });
 
-  it('should add https://x.com prefix for absolute paths', () => {
+  it('絶対パスに https://x.com を補完する', () => {
     expect(normalizeImageUrl('/media/test.jpg')).toBe('https://x.com/media/test.jpg');
   });
 
-  it('should set name=orig for pbs.twimg.com URLs', () => {
+  it('pbs.twimg.com の name パラメータを orig に正規化する', () => {
     const result = normalizeImageUrl('https://pbs.twimg.com/media/test.jpg?name=small');
     expect(result).toContain('name=orig');
   });
 
-  it('should return the URL as-is if already normalized', () => {
+  it('既に正規化済みのURLはそのまま返す', () => {
     const url = 'https://example.com/image.png';
     expect(normalizeImageUrl(url)).toBe(url);
   });
@@ -71,7 +71,7 @@ describe('collectFromArticle', () => {
     globalThis.window = dom.window as unknown as Window & typeof globalThis;
   });
 
-  it('should extract post data from article', () => {
+  it('記事要素から投稿データを抽出できる', () => {
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
 
@@ -86,14 +86,14 @@ describe('collectFromArticle', () => {
     expect(result.images[0]).toContain('name=orig');
   });
 
-  it('should return null when tweet content markers are missing', () => {
+  it('投稿コンテンツ要素がない場合は null を返す', () => {
     const fakeArticle = document.createElement('div');
     const result = collectFromArticle(fakeArticle);
 
     expect(result).toBeNull();
   });
 
-  it('should include expanded link text from tweet body', () => {
+  it('本文のリンク表示文字列を展開して取り込む', () => {
     const linkDom = new JSDOM(`
       <!DOCTYPE html>
       <html>
@@ -122,7 +122,252 @@ describe('collectFromArticle', () => {
     expect(result?.text).toBe('Check this https://example.com');
   });
 
-  it('should parse cashtag + quoted post + image from captured fixture', () => {
+  it('アンカー文字列が protocol のみでも完全URLを復元する', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <span>Get it here:</span>
+              <a href="https://t.co/abc123" title="https://store.example.com/products/neon-suit">
+                <span aria-hidden="true">http://</span>
+              </a>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('Get it here: https://store.example.com/products/neon-suit');
+  });
+
+  it('省略表示より title の展開URLを優先する', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <a href="https://t.co/abc123" title="https://gallery.example.net/posts/12345678">
+                gallery.example.net/posts/12345...
+              </a>
+              <span>テストテキスト</span>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('https://gallery.example.net/posts/12345678 テストテキスト');
+  });
+
+  it('子要素の title 属性から展開URLを取得する', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <a href="https://t.co/abc123">
+                <span title="https://gallery.example.net/posts/12345678">gallery.example.net/posts/12345...</span>
+              </a>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('https://gallery.example.net/posts/12345678');
+  });
+
+  it('展開URLが無い場合は t.co の href を保持する', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <a href="https://t.co/abc123">gallery.example.net/posts/12345...</a>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('https://t.co/abc123');
+  });
+
+  it('末尾省略の可視URLを long-id として正規化する', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <a href="https://t.co/xvaYk5GMUp">https://gallery.example.net/posts/12345678…</a>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('https://gallery.example.net/posts/12345678');
+  });
+
+  it('末尾省略でもクエリ付き可視URLを採用する', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <a href="https://t.co/eM7xdOSMaF">https://video.example.org/watch?v=abcd1234&si=8X0v7_RAcrrJIzU1…</a>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('https://video.example.org/watch?v=abcd1234&si=8X0v7_RAcrrJIzU1');
+  });
+
+  it('@mention を URL に誤変換しない', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <a href="/test_user">@test_user</a>
+              <span>より</span>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('@test_user より');
+  });
+
+  it('mention 前に付いた隠し https:// を除去する', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <a href="/test_user"><span aria-hidden="true">https://</span>@test_user</a>
+              <span>より</span>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('@test_user より');
+  });
+
+  it('本文の改行を保持する', () => {
+    const lineBreakDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <span>line 1
+line 2</span>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = lineBreakDom.window.document;
+    globalThis.document = document;
+    globalThis.window = lineBreakDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('line 1\nline 2');
+  });
+
+  it('fixture から cashtag と引用投稿と画像を抽出できる', () => {
     const fixtureHtml = readFileSync(
       path.resolve(__dirname, '../../../tests/fixtures/x/2025074037639234017/index.html'),
       'utf-8'

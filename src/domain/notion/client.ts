@@ -143,16 +143,16 @@ export async function uploadAssetToNotion(
 }
 
 function buildCompactTitle(text?: string) {
-    const trimmed = text?.trim();
+    const trimmed = text
+        ?.replace(/https?:\/\/\S+/g, '')
+        ?.replace(/#[\p{L}\p{N}_]+/gu, '')
+        ?.replace(/\$[\p{L}\p{N}_]+/gu, '')
+        ?.replace(/[ \t]+/g, ' ')
+        ?.trim();
     if (!trimmed) return 'Image';
     const newlineIndex = trimmed.indexOf('\n');
-    // 改行がある場合はその手前まで
-    if (newlineIndex !== -1) {
-        const endIndex = Math.min(newlineIndex, 120);
-        return trimmed.slice(0, endIndex) + (endIndex < trimmed.length ? '...' : '');
-    }
-    // 改行がない場合は120文字まで
-    return trimmed.slice(0, 120) + (trimmed.length > 120 ? '...' : '');
+    const endIndex = newlineIndex === -1 ? 30 : Math.min(newlineIndex, 30);
+    return trimmed.slice(0, endIndex);
 }
 
 export function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
@@ -357,20 +357,7 @@ function buildChildren(payload: XPostPayload, mediaAssets: DownloadedAsset[]) {
     const children: unknown[] = [];
 
     if (payload.text) {
-        children.push({
-            object: 'block',
-            type: 'paragraph',
-            paragraph: {
-                rich_text: [
-                    {
-                        type: 'text',
-                        text: {
-                            content: payload.text
-                        }
-                    }
-                ]
-            }
-        });
+        children.push(...buildTextParagraphBlocks(payload.text));
     }
 
     const assetMap = new Map(
@@ -382,6 +369,16 @@ function buildChildren(payload: XPostPayload, mediaAssets: DownloadedAsset[]) {
         // keep Notion children aligned with the extracted order, falling back to external URLs if downloads failed
         for (const originalUrl of payload.images) {
             if (!originalUrl) continue;
+            if (isVideoUrl(originalUrl)) {
+                children.push({
+                    object: 'block',
+                    type: 'embed',
+                    embed: {
+                        url: originalUrl
+                    }
+                });
+                continue;
+            }
             const asset = assetMap.get(originalUrl);
             if (asset) {
                 usedSources.add(asset.sourceUrl);
@@ -423,6 +420,88 @@ function buildChildren(payload: XPostPayload, mediaAssets: DownloadedAsset[]) {
     }
 
     return children;
+}
+
+function buildTextParagraphBlocks(text: string) {
+    return text.split('\n').map((line) => ({
+        object: 'block',
+        type: 'paragraph',
+        paragraph: {
+            rich_text: line ? buildParagraphRichText(line) : []
+        }
+    }));
+}
+
+export function buildParagraphRichText(text: string) {
+    const richText: Array<{ type: 'text'; text: { content: string; link?: { url: string } | null } }> = [];
+    const urlPattern = /https?:\/\/[^\s]+|(?:www\.[^\s]+|(?<![@\w])[a-z0-9.-]+\.[a-z]{2,}[^\s]*)/gi;
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = urlPattern.exec(text)) !== null) {
+        const [rawUrl] = match;
+        const start = match.index;
+        const end = start + rawUrl.length;
+
+        if (start > cursor) {
+            richText.push({
+                type: 'text',
+                text: {
+                    content: text.slice(cursor, start)
+                }
+            });
+        }
+
+        const normalizedUrl = normalizeLinkTarget(rawUrl);
+        richText.push({
+            type: 'text',
+            text: {
+                content: rawUrl,
+                link: normalizedUrl ? { url: normalizedUrl } : null
+            }
+        });
+        cursor = end;
+    }
+
+    if (cursor < text.length) {
+        richText.push({
+            type: 'text',
+            text: {
+                content: text.slice(cursor)
+            }
+        });
+    }
+
+    if (richText.length === 0) {
+        return [
+            {
+                type: 'text' as const,
+                text: {
+                    content: text
+                }
+            }
+        ];
+    }
+
+    return richText;
+}
+
+function normalizeLinkTarget(rawUrl: string) {
+    const cleaned = rawUrl.replace(/[)\]}>,.!?;:、。！？…]+$/gu, '');
+    if (/^https?:\/\//i.test(cleaned)) {
+        return isValidUrl(cleaned) ? cleaned : null;
+    }
+    const withScheme = `https://${cleaned}`;
+    return isValidUrl(withScheme) ? withScheme : null;
+}
+
+function isVideoUrl(url: string) {
+    try {
+        const pathname = new URL(url).pathname.toLowerCase();
+        return /\.(mp4|mov|m4v|webm|ogv)$/i.test(pathname);
+    } catch {
+        return false;
+    }
 }
 
 export async function createNotionPage({

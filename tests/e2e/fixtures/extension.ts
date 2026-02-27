@@ -17,7 +17,7 @@ type ExtensionFixtures = {
 };
 
 const test = base.extend<ExtensionFixtures>({
-  context: async (_, use, testInfo) => {
+  context: async ({ browserName: _browserName }, use, testInfo) => {
     if (!existsSync(extensionDist)) {
       throw new Error('dist/ が見つかりません。先に pnpm run build を実行してください。');
     }
