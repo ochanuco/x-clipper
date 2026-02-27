@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build:icons": "node scripts/convert-icons.mjs",
-    "build": "pnpm run build:icons && node esbuild.mjs",
+    "build": "pnpm run build:icons && MANIFEST_ENV=dev node esbuild.mjs",
+    "build:prod": "pnpm run build:icons && MANIFEST_ENV=prod node esbuild.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:unit": "vitest --run",
