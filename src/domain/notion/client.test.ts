@@ -76,4 +76,22 @@ describe('buildProperties', () => {
     expect(result.Name.title[0].text.content.length).toBeLessThanOrEqual(123);
     expect(result.Name.title[0].text.content).toContain('...');
   });
+
+  it('supports legacy string-based mapping shape', () => {
+    const legacyMap = {
+      title: 'Name',
+      screenName: 'Screen Name',
+      userName: 'Username',
+      tweetUrl: 'Tweet URL',
+      postedAt: 'Posted At'
+    } as unknown as AppSettings['propertyMap'];
+
+    const result = buildProperties(mockPayload, legacyMap) as Record<string, any>;
+
+    expect(result.Name.title[0].text.content).toBe('This is a test tweet with some content');
+    expect(result['Screen Name'].rich_text[0].text.content).toBe('Test User');
+    expect(result.Username.rich_text[0].text.content).toBe('@testuser');
+    expect(result['Tweet URL'].url).toBe('https://x.com/testuser/status/123456789');
+    expect(result['Posted At'].date.start).toBe('2025-11-24T12:00:00.000Z');
+  });
 });
