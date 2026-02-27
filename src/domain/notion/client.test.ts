@@ -94,4 +94,19 @@ describe('buildProperties', () => {
     expect(result['Tweet URL'].url).toBe('https://x.com/testuser/status/123456789');
     expect(result['Posted At'].date.start).toBe('2025-11-24T12:00:00.000Z');
   });
+
+  it('ignores invalid non-string propertyName values', () => {
+    const mixedMap = {
+      title: { propertyName: { bad: 'value' }, propertyType: 'title' },
+      screenName: { propertyName: 'Screen Name', propertyType: 'rich_text' },
+      userName: { propertyName: 'Username', propertyType: 'rich_text' },
+      tweetUrl: { propertyName: 'Tweet URL', propertyType: 'url' },
+      postedAt: { propertyName: 'Posted At', propertyType: 'date' }
+    } as unknown as AppSettings['propertyMap'];
+
+    const result = buildProperties(mockPayload, mixedMap) as Record<string, any>;
+
+    expect(result.Name).toBeUndefined();
+    expect(result['Screen Name'].rich_text[0].text.content).toBe('Test User');
+  });
 });

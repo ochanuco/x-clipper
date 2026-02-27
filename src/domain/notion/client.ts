@@ -197,7 +197,8 @@ function normalizeMapping(
     }
 
     const raw = value as Record<string, unknown>;
-    const propertyName = String(raw.propertyName ?? '').trim();
+    if (typeof raw.propertyName !== 'string') return undefined;
+    const propertyName = raw.propertyName.trim();
     if (!propertyName) return undefined;
     const propertyType = normalizePropertyType(raw.propertyType, fallbackType);
 
