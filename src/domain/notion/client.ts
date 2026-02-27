@@ -9,6 +9,13 @@ import { deleteFromCache } from '../storage/cache.js';
 
 const NOTION_API_URL = 'https://api.notion.com/v1';
 const MAX_DIRECT_UPLOAD_BYTES = 20 * 1024 * 1024;
+const DEFAULT_FIELD_TYPES = {
+    title: 'title',
+    screenName: 'rich_text',
+    userName: 'rich_text',
+    tweetUrl: 'url',
+    postedAt: 'date'
+} as const;
 
 export async function notionRequest(
     path: string,
@@ -150,14 +157,72 @@ function buildCompactTitle(text?: string) {
 
 export function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
     const properties: Record<string, unknown> = {};
+    const normalizedMap = normalizePropertyMapInput(map as unknown);
     const fallbackTitle = buildCompactTitle(payload.text);
-    applyMappedProperty(properties, map.title, fallbackTitle || 'Image');
-    applyMappedProperty(properties, map.screenName, payload.screenName);
-    applyMappedProperty(properties, map.userName, payload.userName);
-    applyMappedProperty(properties, map.tweetUrl, payload.url);
-    applyMappedProperty(properties, map.postedAt, payload.timestamp);
+    applyMappedProperty(properties, normalizedMap.title, fallbackTitle || 'Image');
+    applyMappedProperty(properties, normalizedMap.screenName, payload.screenName);
+    applyMappedProperty(properties, normalizedMap.userName, payload.userName);
+    applyMappedProperty(properties, normalizedMap.tweetUrl, payload.url);
+    applyMappedProperty(properties, normalizedMap.postedAt, payload.timestamp);
 
     return properties;
+}
+
+function normalizePropertyMapInput(input: unknown): Partial<AppSettings['propertyMap']> {
+    const raw = (input && typeof input === 'object') ? (input as Record<string, unknown>) : {};
+    return {
+        title: normalizeMapping(raw.title, DEFAULT_FIELD_TYPES.title),
+        screenName: normalizeMapping(raw.screenName, DEFAULT_FIELD_TYPES.screenName),
+        userName: normalizeMapping(raw.userName, DEFAULT_FIELD_TYPES.userName),
+        tweetUrl: normalizeMapping(raw.tweetUrl, DEFAULT_FIELD_TYPES.tweetUrl),
+        postedAt: normalizeMapping(raw.postedAt, DEFAULT_FIELD_TYPES.postedAt)
+    };
+}
+
+function normalizeMapping(
+    value: unknown,
+    fallbackType: NotionPropertyMapping['propertyType']
+): NotionPropertyMapping | undefined {
+    if (typeof value === 'string') {
+        const propertyName = value.trim();
+        if (!propertyName) return undefined;
+        return {
+            propertyName,
+            propertyType: fallbackType
+        };
+    }
+
+    if (!value || typeof value !== 'object') {
+        return undefined;
+    }
+
+    const raw = value as Record<string, unknown>;
+    if (typeof raw.propertyName !== 'string') return undefined;
+    const propertyName = raw.propertyName.trim();
+    if (!propertyName) return undefined;
+    const propertyType = normalizePropertyType(raw.propertyType, fallbackType);
+
+    return {
+        propertyName,
+        propertyType
+    };
+}
+
+function normalizePropertyType(
+    value: unknown,
+    fallbackType: NotionPropertyMapping['propertyType']
+): NotionPropertyMapping['propertyType'] {
+    if (
+        value === 'title' ||
+        value === 'rich_text' ||
+        value === 'select' ||
+        value === 'multi_select' ||
+        value === 'url' ||
+        value === 'date'
+    ) {
+        return value;
+    }
+    return fallbackType;
 }
 
 function applyMappedProperty(
