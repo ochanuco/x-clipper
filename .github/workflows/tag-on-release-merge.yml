@@ -39,3 +39,35 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "${TAG}"
           git push origin "${TAG}"
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build production package
+        run: pnpm run build:prod
+      - name: Create zip archive
+        id: archive
+        run: |
+          ZIP_NAME="x-clipper-v${{ steps.version.outputs.version }}.zip"
+          (cd dist && zip -r "../${ZIP_NAME}" .)
+          echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ format('x-clipper-dist-{0}', github.sha) }}
+          path: dist/
+          retention-days: 30
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.archive.outputs.zip_name }}
+          path: ${{ steps.archive.outputs.zip_name }}
+          retention-days: 30
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          files: ${{ steps.archive.outputs.zip_name }}

@@ -2,9 +2,6 @@ name: Build Release Artifact
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
 
 jobs:
   build:
@@ -47,10 +44,3 @@ jobs:
           name: ${{ steps.archive.outputs.zip_name }}
           path: ${{ steps.archive.outputs.zip_name }}
           retention-days: 30
-      - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          files: ${{ steps.archive.outputs.zip_name }}
