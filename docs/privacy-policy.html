@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Privacy Policy | X Clipper</title>
+    <meta
+      name="description"
+      content="Privacy Policy for X Clipper, a Chrome extension that saves X posts to Notion."
+    >
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f1e8;
+        --paper: #fffdf8;
+        --ink: #1e1f1d;
+        --muted: #66604f;
+        --line: #d8cfbc;
+        --accent: #0f766e;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 28%),
+          linear-gradient(180deg, #f8f4ec 0%, var(--bg) 100%);
+      }
+
+      main {
+        max-width: 760px;
+        margin: 48px auto;
+        padding: 0 20px;
+      }
+
+      article {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 32px 24px;
+        box-shadow: 0 18px 60px rgba(30, 31, 29, 0.08);
+      }
+
+      h1,
+      h2 {
+        line-height: 1.15;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(2rem, 4vw, 3rem);
+      }
+
+      h2 {
+        margin: 32px 0 12px;
+        font-size: 1.25rem;
+      }
+
+      p,
+      li {
+        font-size: 1rem;
+        line-height: 1.7;
+      }
+
+      p.meta {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      ul {
+        padding-left: 20px;
+      }
+
+      a {
+        color: var(--accent);
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.92em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <article>
+        <p class="meta">X Clipper</p>
+        <h1>Privacy Policy</h1>
+        <p class="meta">Last updated: 2026-03-07</p>
+
+        <p>
+          X Clipper is a Chrome extension that allows a user to save X (formerly Twitter)
+          post details into the user's Notion workspace.
+        </p>
+
+        <h2>Data Collected</h2>
+        <p>
+          X Clipper processes the following data only when the user chooses to save a post
+          from an X post detail page:
+        </p>
+        <ul>
+          <li>
+            Post content visible on the page, such as display name, username, post text,
+            post URL, posted time, avatar image, and attached images
+          </li>
+          <li>
+            User-provided Notion settings, including Notion API key, selected Notion
+            database ID, and property mappings
+          </li>
+        </ul>
+
+        <h2>How Data Is Used</h2>
+        <p>The extension uses this data only to:</p>
+        <ul>
+          <li>extract the current X post information from the page</li>
+          <li>create a page in the user's selected Notion database</li>
+          <li>upload related images to Notion when needed</li>
+          <li>store extension settings locally in the browser</li>
+        </ul>
+
+        <h2>Data Storage</h2>
+        <ul>
+          <li>
+            Notion API key, database ID, and property mappings are stored in
+            <code>chrome.storage.local</code> on the user's browser
+          </li>
+          <li>
+            Downloaded media may be cached temporarily inside the extension only for the
+            time needed to complete the save flow
+          </li>
+          <li>X Clipper does not operate its own server for storing user data</li>
+        </ul>
+
+        <h2>Data Sharing</h2>
+        <p>X Clipper does not sell user data.</p>
+        <p>Data is sent only to services required for the requested function:</p>
+        <ul>
+          <li>
+            Notion API, to create pages and upload files into the user's Notion workspace
+          </li>
+          <li>
+            X/Twitter and related media domains, only to read the page the user is viewing
+            and fetch media needed for saving
+          </li>
+        </ul>
+
+        <h2>User Control</h2>
+        <p>Users control when data is processed by choosing to save a post.</p>
+        <ul>
+          <li>Users can remove the extension at any time</li>
+          <li>Users can clear extension settings through Chrome extension storage controls</li>
+          <li>Users can revoke the Notion integration token from their Notion account</li>
+        </ul>
+
+        <h2>Contact</h2>
+        <p>
+          For privacy-related questions, contact the developer through the support channel
+          listed on the Chrome Web Store page for X Clipper.
+        </p>
+      </article>
+    </main>
+  </body>
+</html>
