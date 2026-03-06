@@ -28,6 +28,7 @@
 - **E2E テスト**: Playwright で実装。`tests/e2e/` 配下に配置し、fixtures の X HTML と Notion API モックでオフライン検証する。
 - **CI/CD**: GitHub Actions で PR 作成時に E2E テストが自動実行される (`ubuntu-slim` 環境)。
 - 外部リクエストのモックが必要な場合は、Vitest の標準モック機能や `msw` 等を活用する。
+- X本文抽出のリンク解釈は壊れやすいため、`src/domain/x/parser.ts` を触る前に [`docs/x-parser-contract.md`](/Users/chanu/ghq/github.com/ochanuco/x-clipper/docs/x-parser-contract.md) を確認すること。
 
 ## コミットとプルリクエストの指針
 - Conventional Commits (`feat:`、`fix:`、`chore:` など) を採用し、コミットメッセージは日本語で簡潔に記述する。例: `feat: Markdown クリッピング機能を追加`。

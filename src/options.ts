@@ -7,7 +7,7 @@ import type {
 } from './types.js';
 
 const NOTION_API_URL = 'https://api.notion.com/v1';
-const NOTION_VERSION_DEFAULT = '2025-09-03';
+const NOTION_VERSION = '2025-09-03';
 
 type MappingKey = keyof NotionPropertyMap;
 
@@ -81,10 +81,6 @@ function getInputValue(id: string): string {
   return el?.value.trim() ?? '';
 }
 
-function getNotionVersion(): string {
-  return pendingSettings?.notionVersion?.trim() || NOTION_VERSION_DEFAULT;
-}
-
 function getMappingSelect(key: MappingKey): HTMLSelectElement | null {
   const id = mappingSelectIds[key];
   return document.getElementById(id) as HTMLSelectElement | null;
@@ -112,19 +108,19 @@ function normalizeDatabaseIdLocal(input: string): string {
   return match[0].replace(/-/g, '');
 }
 
-function buildHeaders(apiKey: string, notionVersion: string): Record<string, string> {
+function buildHeaders(apiKey: string): Record<string, string> {
   return {
     Authorization: `Bearer ${apiKey.trim()}`,
-    'Notion-Version': notionVersion || NOTION_VERSION_DEFAULT,
+    'Notion-Version': NOTION_VERSION,
     'Content-Type': 'application/json'
   };
 }
 
-async function notionApiRequest(path: string, init: RequestInit, apiKey: string, notionVersion: string) {
+async function notionApiRequest(path: string, init: RequestInit, apiKey: string) {
   const res = await fetch(`${NOTION_API_URL}${path}`, {
     ...init,
     headers: {
-      ...buildHeaders(apiKey, notionVersion),
+      ...buildHeaders(apiKey),
       ...(init.headers ?? {})
     }
   });
@@ -156,7 +152,7 @@ function extractTitle(database: Record<string, unknown>): string {
   return plain || 'Untitled';
 }
 
-async function fetchDatabases(apiKey: string, notionVersion: string): Promise<NotionDatabaseItem[]> {
+async function fetchDatabases(apiKey: string): Promise<NotionDatabaseItem[]> {
   let searchObjectType: 'data_source' | 'database' = 'data_source';
   const databases: NotionDatabaseItem[] = [];
   let cursor: string | undefined;
@@ -182,8 +178,7 @@ async function fetchDatabases(apiKey: string, notionVersion: string): Promise<No
           method: 'POST',
           body: JSON.stringify(body)
         },
-        apiKey,
-        notionVersion
+        apiKey
       )) as Record<string, unknown>;
     } catch (error) {
       if (
@@ -191,9 +186,7 @@ async function fetchDatabases(apiKey: string, notionVersion: string): Promise<No
         error.status === 400 &&
         searchObjectType === 'data_source'
       ) {
-        const message = String(
-          (error.body as Record<string, unknown> | null)?.message ?? ''
-        );
+        const message = String((error.body as Record<string, unknown> | null)?.message ?? '');
         if (message.includes('body.filter.value')) {
           searchObjectType = 'database';
           i = -1;
@@ -214,9 +207,8 @@ async function fetchDatabases(apiKey: string, notionVersion: string): Promise<No
       const rawId = String(db.id ?? '');
       if (!rawId) continue;
 
-      const id = normalizeDatabaseIdLocal(rawId);
       databases.push({
-        id,
+        id: normalizeDatabaseIdLocal(rawId),
         title: extractTitle(db)
       });
     }
@@ -234,7 +226,6 @@ async function fetchDatabases(apiKey: string, notionVersion: string): Promise<No
 
 async function fetchDatabaseSchema(
   apiKey: string,
-  notionVersion: string,
   databaseId: string
 ): Promise<NotionDatabaseSchema> {
   const compactId = normalizeDatabaseIdLocal(databaseId);
@@ -244,8 +235,7 @@ async function fetchDatabaseSchema(
     json = (await notionApiRequest(
       `/data_sources/${compactId}`,
       { method: 'GET' },
-      apiKey,
-      notionVersion
+      apiKey
     )) as Record<string, unknown>;
   } catch (error) {
     if (!(error instanceof NotionApiError) || error.status !== 404) {
@@ -262,8 +252,7 @@ async function fetchDatabaseSchema(
     json = (await notionApiRequest(
       `/databases/${compactId}`,
       { method: 'GET' },
-      apiKey,
-      notionVersion
+      apiKey
     )) as Record<string, unknown>;
   }
 
@@ -349,22 +338,22 @@ function populateDatabaseSelect(databases: NotionDatabaseItem[], selectedId = ''
   if (!databaseSelect) return;
 
   databaseSelect.innerHTML = '';
+
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = databases.length > 0 ? '選択してください' : '共有済みデータベースが見つかりません';
+  placeholder.textContent =
+    databases.length > 0 ? 'データベースを選択してください' : '共有済みデータベースが見つかりません';
   databaseSelect.appendChild(placeholder);
 
-  const sorted = [...databases].sort((a, b) => a.title.localeCompare(b.title));
-  for (const db of sorted) {
+  for (const database of databases) {
     const option = document.createElement('option');
-    option.value = db.id;
-    option.textContent = `${db.title} (${db.id.slice(0, 8)}...)`;
+    option.value = database.id;
+    option.textContent = `${database.title} (${database.id})`;
+    option.selected = database.id === selectedId;
     databaseSelect.appendChild(option);
   }
 
-  if (selectedId && databases.some((db) => db.id === selectedId)) {
-    databaseSelect.value = selectedId;
-  } else {
+  if (!databases.some((database) => database.id === selectedId)) {
     databaseSelect.value = '';
   }
 }
@@ -372,14 +361,16 @@ function populateDatabaseSelect(databases: NotionDatabaseItem[], selectedId = ''
 async function loadSchemaForSelectedDatabase(preferredMap?: NotionPropertyMap) {
   const myGeneration = ++schemaLoadGeneration;
   const apiKey = getInputValue('notionApiKey');
-  const notionVersion = getNotionVersion();
   const selectedDatabaseId = databaseSelect?.value.trim() ?? '';
 
-  if (!apiKey || !notionVersion || !selectedDatabaseId) {
+  if (!apiKey || !selectedDatabaseId) {
+    currentDatabaseSchema = {};
+    currentDatabaseSchemaSourceId = '';
+    populateAllMappingSelects();
     return;
   }
 
-  const schema = await fetchDatabaseSchema(apiKey, notionVersion, selectedDatabaseId);
+  const schema = await fetchDatabaseSchema(apiKey, selectedDatabaseId);
   if (myGeneration !== schemaLoadGeneration) {
     return;
   }
@@ -388,28 +379,27 @@ async function loadSchemaForSelectedDatabase(preferredMap?: NotionPropertyMap) {
   populateAllMappingSelects(preferredMap);
 }
 
-async function handleLoadDatabases() {
+async function loadDatabases() {
   const myGeneration = ++databaseLoadGeneration;
   const apiKey = getInputValue('notionApiKey');
-  const notionVersion = getNotionVersion();
-
   if (!apiKey) {
     setStatus('Notion API キーを入力してください。', true);
     return;
   }
-  setStatus('データベース一覧を取得中...', false);
+
   if (loadDatabasesButton) {
     loadDatabasesButton.disabled = true;
   }
+  setStatus('データベース一覧を取得しています...');
 
   try {
-    const databases = await fetchDatabases(apiKey, notionVersion);
+    const databases = await fetchDatabases(apiKey);
     if (myGeneration !== databaseLoadGeneration) {
       return;
     }
 
     currentDatabases = databases;
-    populateDatabaseSelect(databases, pendingSettings?.notionDatabaseId ?? '');
+    populateDatabaseSelect(currentDatabases, pendingSettings?.notionDatabaseId ?? '');
 
     if (databaseSelect?.value) {
       await loadSchemaForSelectedDatabase(pendingSettings?.propertyMap);
@@ -419,7 +409,11 @@ async function handleLoadDatabases() {
       populateAllMappingSelects();
     }
 
-    setStatus('データベース一覧を取得しました。', false);
+    setStatus(
+      currentDatabases.length > 0
+        ? `${currentDatabases.length} 件のデータベースを取得しました。`
+        : '利用可能なデータベースがありません。'
+    );
   } catch (error) {
     if (myGeneration !== databaseLoadGeneration) {
       return;
@@ -427,10 +421,7 @@ async function handleLoadDatabases() {
     const message = error instanceof Error ? error.message : 'データベース一覧の取得に失敗しました。';
     setStatus(message, true);
   } finally {
-    if (myGeneration !== databaseLoadGeneration) {
-      return;
-    }
-    if (loadDatabasesButton) {
+    if (myGeneration === databaseLoadGeneration && loadDatabasesButton) {
       loadDatabasesButton.disabled = false;
     }
   }
@@ -440,7 +431,7 @@ function validateAndCollectMapping(field: MappingKey): NotionPropertyMapping {
   const select = getMappingSelect(field);
   const mapping = decodeMappingValue(select?.value ?? '');
   if (!mapping) {
-    throw new Error('すべてのマッピングを選択してください。');
+    throw new Error('すべてのプロパティマッピングを選択してください。');
   }
 
   const schemaProp = currentDatabaseSchema[mapping.propertyName];
@@ -465,8 +456,7 @@ async function handleSubmit(event: Event) {
   event.preventDefault();
 
   const notionApiKey = getInputValue('notionApiKey');
-  const notionDatabaseId = databaseSelect?.value.trim() ?? '';
-  const notionVersion = getNotionVersion();
+  const notionDatabaseId = databaseSelect?.value?.trim() ?? '';
 
   if (!notionApiKey) {
     setStatus('Notion API キーを入力してください。', true);
@@ -477,8 +467,6 @@ async function handleSubmit(event: Event) {
     setStatus('Notion データベースを選択してください。', true);
     return;
   }
-
-  setStatus('保存中...', false);
 
   try {
     const hasSchemaForSelectedDatabase =
@@ -502,15 +490,14 @@ async function handleSubmit(event: Event) {
     const settings: AppSettings = {
       notionApiKey,
       notionDatabaseId,
-      notionVersion,
       propertyMap
     };
 
     await saveSettings(settings);
     pendingSettings = cloneSettings(settings);
-    setStatus('保存しました。', false);
+    setStatus('設定を保存しました。');
   } catch (error) {
-    const message = error instanceof Error ? error.message : '保存中にエラーが発生しました。';
+    const message = error instanceof Error ? error.message : '設定の保存に失敗しました。';
     setStatus(message, true);
   }
 }
@@ -519,7 +506,6 @@ function cloneSettings(settings: AppSettings): AppSettings {
   return {
     notionApiKey: settings.notionApiKey,
     notionDatabaseId: settings.notionDatabaseId,
-    notionVersion: settings.notionVersion,
     propertyMap: {
       title: { ...settings.propertyMap.title },
       screenName: { ...settings.propertyMap.screenName },
@@ -530,55 +516,48 @@ function cloneSettings(settings: AppSettings): AppSettings {
   };
 }
 
-async function hydrateForm() {
+async function initialize() {
   const settings = await getSettings();
-  pendingSettings = settings;
+  pendingSettings = cloneSettings(settings);
 
-  const notionApiKeyInput = document.getElementById('notionApiKey') as HTMLInputElement | null;
-
-  if (notionApiKeyInput) {
-    notionApiKeyInput.value = settings.notionApiKey;
+  const apiKeyInput = document.getElementById('notionApiKey') as HTMLInputElement | null;
+  if (apiKeyInput) {
+    apiKeyInput.value = settings.notionApiKey;
   }
+
+  populateDatabaseSelect([], settings.notionDatabaseId);
+  populateAllMappingSelects(settings.propertyMap);
 
   if (settings.notionApiKey) {
-    await handleLoadDatabases();
-  } else {
-    populateAllMappingSelects();
+    try {
+      await loadDatabases();
+      setStatus('保存済み設定を読み込みました。');
+    } catch {
+      setStatus('保存済み設定を読み込みました。DB一覧は再取得してください。');
+    }
   }
 }
 
-if (form) {
-  form.addEventListener('submit', handleSubmit);
-}
+loadDatabasesButton?.addEventListener('click', () => {
+  void loadDatabases();
+});
 
-if (loadDatabasesButton) {
-  loadDatabasesButton.addEventListener('click', () => {
-    void handleLoadDatabases();
-  });
-}
+databaseSelect?.addEventListener('change', () => {
+  void (async () => {
+    try {
+      setStatus('データベースのスキーマを取得しています...');
+      await loadSchemaForSelectedDatabase(pendingSettings?.propertyMap);
+      setStatus('データベースのスキーマを取得しました。');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'データベースのスキーマ取得に失敗しました。';
+      setStatus(message, true);
+    }
+  })();
+});
 
-if (databaseSelect) {
-  databaseSelect.addEventListener('change', () => {
-    void (async () => {
-      try {
-        setStatus('データベースのスキーマを取得中...', false);
-        await loadSchemaForSelectedDatabase();
-        setStatus('スキーマを取得しました。', false);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'スキーマの取得に失敗しました。';
-        setStatus(message, true);
-      }
-    })();
-  });
-}
+form?.addEventListener('submit', (event) => {
+  void handleSubmit(event);
+});
 
-const notionApiKeyInput = document.getElementById('notionApiKey') as HTMLInputElement | null;
-if (notionApiKeyInput) {
-  notionApiKeyInput.addEventListener('blur', () => {
-    if (!notionApiKeyInput.value.trim()) return;
-    void handleLoadDatabases();
-  });
-}
-
-void hydrateForm();
+void initialize();

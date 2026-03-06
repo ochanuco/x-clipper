@@ -2,80 +2,12 @@ import { getSettings } from './settings.js';
 import type { AppSettings, DownloadedAsset } from './types.js';
 import type { XPostPayload } from './domain/x/types.js';
 import { downloadAsset } from './services/downloader.js';
+import { expandTcoUrlsInText } from './services/tco-resolver.js';
 import { uploadAssetToNotion, createNotionPage, buildProperties } from './domain/notion/client.js';
 import { cleanupExpiredCache, deleteFromCache } from './domain/storage/cache.js';
 
-const CONTEXT_MENU_ID = 'x-clipper-x-post';
 const NOTIFICATION_ICON_PATH = 'icons/icon-128.png';
 const CACHE_TTL_MS = 5 * 60 * 1000;
-
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: CONTEXT_MENU_ID,
-      title: 'X Clipper で Notion に保存',
-      contexts: ['page'],
-      documentUrlPatterns: [
-        'https://x.com/*/status/*',
-        'https://twitter.com/*/status/*'
-      ]
-    });
-  });
-});
-
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === CONTEXT_MENU_ID) {
-    await handleClip(tab);
-  }
-});
-
-chrome.action.onClicked.addListener(async (tab) => {
-  await handleClip(tab);
-});
-
-async function handleClip(tab?: chrome.tabs.Tab) {
-  try {
-    if (!tab || typeof tab.id !== 'number' || !tab.url) {
-      await showNotification('アクティブなタブが見つかりません。', true);
-      return;
-    }
-
-    if (!isSupportedUrl(tab.url)) {
-      await showNotification('X (Twitter) の詳細投稿ページで実行してください。', true);
-      return;
-    }
-
-    const settings = await getSettings();
-    validateSettings(settings);
-
-    const post = await requestExtraction(tab.id);
-    await clipPostToNotion(settings, post);
-
-    await showNotification('Notion に投稿を保存しました。');
-  } catch (error) {
-    let message = '処理中にエラーが発生しました。';
-    if (error instanceof Error) {
-      message = error.message;
-    } else if (typeof error === 'string') {
-      message = error;
-    }
-
-    if (!(error instanceof AlreadyNotifiedError)) {
-      await showNotification(message, true);
-    }
-  }
-}
-
-function isSupportedUrl(url: string) {
-  try {
-    const { hostname, pathname } = new URL(url);
-    const isX = hostname === 'x.com' || hostname === 'twitter.com';
-    const isStatus = /\/status\/\d+/.test(pathname);
-    return isX && isStatus;
-  } catch {
-    return false;
-  }
-}
 
 function validateSettings(settings: AppSettings) {
   const apiKey = settings.notionApiKey?.trim();
@@ -92,34 +24,6 @@ function validateSettings(settings: AppSettings) {
   }
 }
 
-async function requestExtraction(tabId: number): Promise<XPostPayload> {
-  try {
-    return await sendExtractionRequest(tabId);
-  } catch (error) {
-    if (error instanceof ExtractionError && error.reason === 'NO_RECEIVER') {
-      await ensureContentScript(tabId);
-      return await sendExtractionRequest(tabId);
-    }
-    throw error;
-  }
-}
-
-async function ensureContentScript(tabId: number) {
-  return chrome.scripting.executeScript({
-    target: { tabId },
-    files: ['content-script.js']
-  });
-}
-
-class ExtractionError extends Error {
-  constructor(
-    message: string,
-    public readonly reason: 'NO_RECEIVER' | 'UNKNOWN'
-  ) {
-    super(message);
-  }
-}
-
 class AlreadyNotifiedError extends Error {
   public readonly alreadyNotified = true;
 
@@ -128,69 +32,12 @@ class AlreadyNotifiedError extends Error {
   }
 }
 
-async function sendExtractionRequest(tabId: number): Promise<XPostPayload> {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(
-      tabId,
-      { type: 'EXTRACT_X_POST' },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          const runtimeMessage = chrome.runtime.lastError.message ?? '';
-          if (runtimeMessage.includes('Receiving end does not exist')) {
-            reject(
-              new ExtractionError(
-                '投稿を取得できませんでした。ページを再読み込みしてもう一度お試しください。',
-                'NO_RECEIVER'
-              )
-            );
-            return;
-          }
-
-          reject(
-            new ExtractionError(
-              'ページから情報を取得できませんでした。権限と対象ページを確認してください。',
-              'UNKNOWN'
-            )
-          );
-          return;
-        }
-
-        if (!response) {
-          reject(
-            new ExtractionError(
-              'コンテンツスクリプトから応答がありませんでした。',
-              'UNKNOWN'
-            )
-          );
-          return;
-        }
-
-        if (!response.success) {
-          reject(
-            new ExtractionError(
-              response.error ?? '投稿の抽出に失敗しました。',
-              'UNKNOWN'
-            )
-          );
-          return;
-        }
-
-        resolve(response.data as XPostPayload);
-      }
-    );
-  });
-}
-
 async function clipPostToNotion(
   settings: AppSettings,
   post: XPostPayload
 ): Promise<void> {
   const normalizedPost = await normalizePostTextUrls(post);
   const databaseId = normalizeDatabaseId(settings.notionDatabaseId);
-  const propertyNames = {
-    ...settings.propertyMap,
-    ...(normalizedPost.propertyMap ?? {})
-  };
 
   let avatarAsset: DownloadedAsset | null = null;
   if (normalizedPost.avatarUrl) {
@@ -235,14 +82,11 @@ async function clipPostToNotion(
       settings,
       databaseId,
       payload: normalizedPost,
-      properties: buildProperties(normalizedPost, propertyNames),
+      properties: buildProperties(normalizedPost, settings.propertyMap),
       avatarAsset,
       mediaAssets
     });
-    await clearCachedAssets([
-      avatarAsset,
-      ...mediaAssets
-    ]);
+    await clearCachedAssets([avatarAsset, ...mediaAssets]);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Notion への保存中にエラーが発生しました。';
@@ -252,80 +96,9 @@ async function clipPostToNotion(
 }
 
 async function normalizePostTextUrls(post: XPostPayload): Promise<XPostPayload> {
-  const text = await expandTcoUrls(post.text);
+  const text = await expandTcoUrlsInText(post.text);
   if (text === post.text) return post;
   return { ...post, text };
-}
-
-async function expandTcoUrls(text: string): Promise<string> {
-  if (!text) return text;
-  const matches = Array.from(new Set(text.match(/https?:\/\/t\.co\/[A-Za-z0-9]+/g) ?? []));
-  if (matches.length === 0) return text;
-
-  const resolvedMap = new Map<string, string>();
-  await Promise.all(
-    matches.map(async (shortUrl) => {
-      try {
-        const resolved = await resolveRedirectLocation(shortUrl);
-        resolvedMap.set(shortUrl, resolved);
-      } catch {
-        resolvedMap.set(shortUrl, shortUrl);
-      }
-    })
-  );
-
-  let normalized = text;
-  for (const [shortUrl, finalUrl] of resolvedMap.entries()) {
-    normalized = normalized.split(shortUrl).join(finalUrl);
-  }
-  return normalized;
-}
-
-async function resolveRedirectLocation(shortUrl: string): Promise<string> {
-  let currentUrl = shortUrl;
-  const maxHops = 5;
-
-  for (let i = 0; i < maxHops; i += 1) {
-    const response = await fetch(currentUrl, {
-      method: 'GET',
-      redirect: 'manual',
-      credentials: 'omit'
-    });
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
-      if (!location) return currentUrl;
-      const nextUrl = new URL(location, currentUrl).toString();
-      const nextHost = new URL(nextUrl).hostname.toLowerCase();
-      // t.co から外に出た時点で十分（以降は host_permissions の外で失敗しやすい）
-      if (nextHost !== 't.co') {
-        return nextUrl;
-      }
-      currentUrl = nextUrl;
-      continue;
-    }
-
-    if (response.type === 'opaqueredirect') {
-      return await resolveByFollow(shortUrl);
-    }
-
-    return response.url || currentUrl;
-  }
-
-  return currentUrl;
-}
-
-async function resolveByFollow(url: string): Promise<string> {
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      redirect: 'follow',
-      credentials: 'omit'
-    });
-    return response.url || url;
-  } catch {
-    return url;
-  }
 }
 
 function isVideoUrl(url: string): boolean {
@@ -348,63 +121,37 @@ async function clearCachedAssets(assets: Array<DownloadedAsset | null | undefine
   );
 }
 
-// Handle clip requests from content script save buttons
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || message.type !== 'CLIP_X_POST') return undefined;
+
   (async () => {
     try {
       const settings = await getSettings();
       validateSettings(settings);
+
       const payload = message.data as XPostPayload;
       if (!payload || typeof payload !== 'object' || !payload.url || !Array.isArray(payload.images)) {
         sendResponse({ success: false, error: 'invalid_payload structure' });
         return;
       }
+
       try {
         await clipPostToNotion(settings, payload);
+        await showNotification('Notion に投稿を保存しました。');
         sendResponse({ success: true });
-        return;
       } catch (err) {
-        console.warn('clip to notion failed, falling back to downloads', err);
-        // fallback: download media files (avatar + images)
-        const urls: string[] = [];
-        if (payload.avatarUrl) urls.push(payload.avatarUrl);
-        if (Array.isArray(payload.images)) urls.push(...payload.images);
-
-        // Attempt to use chrome.downloads if available
-        if (chrome.downloads && chrome.downloads.download) {
-          void showNotification('Notion へのアップロードに失敗したため、ファイルをダウンロードします。', true);
-          for (const url of urls) {
-            try {
-              const ext = resolveExtension(url, 'application/octet-stream');
-              const name = buildFileName('x-clip', ext);
-              chrome.downloads.download({ url, filename: name, conflictAction: 'uniquify' }, (id) => {
-                if (chrome.runtime.lastError) {
-                  console.warn('download failed', chrome.runtime.lastError.message);
-                } else {
-                  console.log('started download', id, url);
-                }
-              });
-            } catch (err2) {
-              console.warn('fallback download error for', url, err2);
-            }
-          }
-          sendResponse({ success: false, fallback: 'downloads' });
-          return;
-        }
-
+        console.warn('clip to notion failed', err);
         sendResponse({ success: false, error: String(err) });
-        return;
       }
     } catch (err) {
       console.warn('CLIP_X_POST handler error', err);
       sendResponse({ success: false, error: String(err) });
     }
   })();
+
   return true;
 });
 
-// Schedule frequent cleanup using chrome.alarms
 try {
   const periodInMinutes = Math.max(1, Math.round(CACHE_TTL_MS / 60000));
   chrome.alarms.create('xclip-cache-cleanup', { periodInMinutes });
@@ -425,50 +172,21 @@ try {
   void err;
 }
 
-// Run a cleanup on startup of the service worker
-void cleanupExpiredCache(CACHE_TTL_MS).then((deleted) => {
-  if (deleted > 0) {
-    console.log(`x-clipper: cleaned up ${deleted} cached assets on startup`);
-  }
-}).catch((err) => {
-  console.warn('x-clipper: startup cache cleanup failed', err);
-});
-
-function resolveExtension(url: string, contentType: string) {
-  try {
-    const pathname = new URL(url).pathname;
-    const ext = pathname.split('.').pop();
-    if (ext && /^[a-z0-9]+$/i.test(ext)) {
-      return ext.toLowerCase();
+void cleanupExpiredCache(CACHE_TTL_MS)
+  .then((deleted) => {
+    if (deleted > 0) {
+      console.log(`x-clipper: cleaned up ${deleted} cached assets on startup`);
     }
-  } catch {
-    // ignore parse errors
-  }
-
-  const map: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/gif': 'gif',
-    'image/webp': 'webp',
-    'image/svg+xml': 'svg',
-    'video/mp4': 'mp4',
-    'video/quicktime': 'mov'
-  };
-  return map[contentType.toLowerCase()] ?? 'bin';
-}
-
-function buildFileName(label: string, extension: string) {
-  const safeLabel = label.replace(/[^a-zA-Z0-9_-]/g, '-');
-  const unique = crypto.randomUUID().split('-')[0];
-  return `${safeLabel}-${unique}.${extension}`;
-}
+  })
+  .catch((err) => {
+    console.warn('x-clipper: startup cache cleanup failed', err);
+  });
 
 function normalizeDatabaseId(input: string) {
   const trimmed = input.trim();
   const match =
-    trimmed.match(
-      /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i
-    ) ?? trimmed.match(/[a-f0-9]{32}/i);
+    trimmed.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i) ??
+    trimmed.match(/[a-f0-9]{32}/i);
 
   if (!match) {
     throw new Error('Notion データベース ID の形式が認識できませんでした。');

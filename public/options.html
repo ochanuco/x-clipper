@@ -24,11 +24,6 @@
         margin-bottom: 16px;
       }
 
-      h2 {
-        font-size: 1rem;
-        margin: 0 0 8px;
-      }
-
       label {
         display: block;
         font-weight: 600;
@@ -80,23 +75,10 @@
         margin-top: 4px;
       }
 
-      .schema-box {
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        background: #f8fafc;
-        padding: 10px 12px;
-        max-height: 180px;
-        overflow: auto;
-      }
-
-      .schema-box ul {
-        margin: 0;
-        padding-left: 18px;
-      }
-
-      .schema-box li {
-        font-size: 0.85rem;
-        margin-bottom: 4px;
+      legend {
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin-bottom: 12px;
       }
 
       button.fetch-btn {
@@ -171,7 +153,7 @@
         <fieldset>
           <legend>プロパティマッピング</legend>
           <div class="field">
-            <label for="mapTitle">タイトル（ツイート本文の要約）</label>
+            <label for="mapTitle">タイトル（本文要約）</label>
             <select id="mapTitle" name="mapTitle" required></select>
           </div>
           <div class="field">
@@ -183,13 +165,16 @@
             <select id="mapUserName" name="mapUserName" required></select>
           </div>
           <div class="field">
-            <label for="mapTweetUrl">URL</label>
+            <label for="mapTweetUrl">投稿URL</label>
             <select id="mapTweetUrl" name="mapTweetUrl" required></select>
           </div>
           <div class="field">
             <label for="mapPostedAt">投稿日時</label>
             <select id="mapPostedAt" name="mapPostedAt" required></select>
           </div>
+          <p class="helper">
+            選択したデータベースのプロパティ型に応じて候補が表示されます。
+          </p>
         </fieldset>
 
         <button type="submit">保存する</button>
