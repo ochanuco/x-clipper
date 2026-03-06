@@ -22,14 +22,8 @@
     "type": "module"
   },
   "permissions": [
-    "activeTab",
-    "contextMenus",
     "notifications",
-    "storage",
-    "scripting"
-  ],
-  "optional_permissions": [
-    "downloads"
+    "storage"
   ],
   "host_permissions": [
     "https://t.co/*",

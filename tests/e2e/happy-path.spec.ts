@@ -55,7 +55,7 @@ test.describe('オフラインMV3クリッピング', () => {
 
     await serveOfflineTweet(context, { tweetHtml, avatarBuffer, mediaBuffer, fixtureDir });
 
-    await page.goto(`https://x.com/ochanuco/status/${fixtureId}`);
+    await page.goto(`https://x.com/sample_user/status/${fixtureId}`);
 
     // クリップボタンが表示されることを確認
     const clipButton = page.locator('article .x-clipper-save-button').first();

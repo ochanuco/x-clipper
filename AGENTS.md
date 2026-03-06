@@ -1,35 +1,25 @@
-# Repository Guidelines
+# Agent Notes
 
-## プロジェクト構成とモジュール配置
-- ブラウザ拡張のソースは `src/`、ビルド成果物は `dist/` に出力される。`background.ts`（MV3 サービスワーカー）、`content-script.ts`、`options.ts` が主要エントリ。
-- `src/domain/` に Notion 連携・X 解析ロジック、`src/services/` にダウンロードなどの副作用処理、`src/ui/` に挿入ボタン UI を配置。
-- `public/` に manifest・オプション HTML・アイコンなど静的ファイル、`scripts/` にビルド/テスト補助スクリプトを配置。
-- ブラウザ拡張が Notion へ直接アクセスするため、追加のバックエンドは不要。Direct Upload API を利用する。
-- 依存パッケージは単一の `package.json` で管理し、`pnpm` を利用する。
+## Purpose
+- README の再掲ではなく、この repo で実装時に踏み外しやすい判断だけを書く。
 
-## ビルド・テスト・開発コマンド
-- `pnpm install` – 依存をインストール。lockfile の差分が出た場合は必ず実行する。
-- `pnpm run build:icons` – SVG アイコンを PNG 形式に変換して `public/` に生成。
-- `pnpm run build` – アイコン変換後、esbuild で拡張の JS を `dist/` に生成する。
-- `pnpm run typecheck` – TypeScript の型検証のみを実行する。
-- `pnpm test` – Vitest を watch 付きで実行する。
-- `pnpm run test:unit` – Vitest を単発実行する。
-- `pnpm run test:e2e` – Playwright による E2E テストを実行する（初回は `pnpm exec playwright install chromium` が必要）。
-- サーバー起動コマンドは存在しない。ビルドと型チェック、テストのみ。
+## Guardrails
+- パッケージ管理と実行は `pnpm` を使う。
+- このリポジトリはブラウザ拡張のみ。秘匿情報はリポジトリに置かず、`chrome.storage.local` 前提で扱う。
+- テストや fixture に live URL、実在ハンドル、実在サービス固有の slug を直接残さない。`example.com` やダミー値へマスクする。
 
-## コーディングスタイルと命名規則
-- Node 20 + TypeScript を前提に、ES Modules と 2 スペースインデントを標準とする。
-- インターフェースや型エイリアスは PascalCase (`ClipPayload`)、関数と変数は camelCase、不変の定数は `ALL_CAPS` を用いる。
-- 現状 ESLint/Prettier 設定は未導入のため、フォーマットが気になる場合は手動で修正する。
-- Notion の統合キーなど秘匿情報は拡張のオプション画面で入力し、`chrome.storage.local` にのみ保存する。リポジトリへ含めないこと。
+## Fragile Areas
+- `src/domain/x/parser.ts` のリンク抽出は壊れやすい。`title` / `data-expanded-url` 系、可視URL復元、`t.co` fallback の優先順位を単純化しない。
+- `src/domain/x/parser.ts` を触る前に `docs/x-parser-contract.md` を確認する。
+- `src/options.ts` の DB schema 取得と property mapping は連動している。片方だけ単純化しない。
+- `src/background.ts` の保存フローは、抽出、`t.co` 正規化、Notion properties 構築の順序を崩さない。
 
-## テスト指針
-- **ユニットテスト**: Vitest + jsdom 環境で実装。`tests/e2e/` 以外の `.test.ts` または `.spec.ts` ファイルが対象。
-- **E2E テスト**: Playwright で実装。`tests/e2e/` 配下に配置し、fixtures の X HTML と Notion API モックでオフライン検証する。
-- **CI/CD**: GitHub Actions で PR 作成時に E2E テストが自動実行される (`ubuntu-slim` 環境)。
-- 外部リクエストのモックが必要な場合は、Vitest の標準モック機能や `msw` 等を活用する。
+## Verification
+- X 抽出ロジックを触ったら `src/domain/x/parser.test.ts` を更新または確認する。
+- Notion properties、settings、options を触ったら対応する unit test を更新する。
+- 最低でも `pnpm run typecheck` と `pnpm run test:unit` を回す。
+- X 抽出や保存導線の境界をまたぐ変更では `pnpm run test:e2e` まで回す。
 
-## コミットとプルリクエストの指針
-- Conventional Commits (`feat:`、`fix:`、`chore:` など) を採用し、コミットメッセージは日本語で簡潔に記述する。例: `feat: Markdown クリッピング機能を追加`。
-- 各 PR では関連 Issue へのリンク、アプローチの要約、UI が変わる場合のスクリーンショットや GIF を添付する。
-- 1 PR の差分は 400 行以内を目安にし、大規模な変更はレビューしやすい単位に分割して段階的な展開方針も説明する。
+## Delivery
+- コミットは Conventional Commits を使い、日本語で簡潔に書く。
+- PR は小さく保ち、壊れやすい仕様を変える場合は根拠となる fixture か test を先に追加する。

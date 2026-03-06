@@ -8,6 +8,7 @@ import type { XPostPayload } from '../x/types.js';
 import { deleteFromCache } from '../storage/cache.js';
 
 const NOTION_API_URL = 'https://api.notion.com/v1';
+const NOTION_VERSION = '2025-09-03';
 const MAX_DIRECT_UPLOAD_BYTES = 20 * 1024 * 1024;
 const DEFAULT_FIELD_TYPES = {
     title: 'title',
@@ -22,10 +23,9 @@ export async function notionRequest(
     init: RequestInit,
     settings: AppSettings
 ): Promise<Response> {
-    const notionVersion = settings.notionVersion?.trim() || '2025-09-03';
     const headers: Record<string, string> = {
         Authorization: `Bearer ${settings.notionApiKey.trim()}`,
-        'Notion-Version': notionVersion
+        'Notion-Version': NOTION_VERSION
     };
 
     const body = init?.body ?? null;
@@ -157,8 +157,8 @@ function buildCompactTitle(text?: string) {
 
 export function buildProperties(payload: XPostPayload, map: AppSettings['propertyMap']) {
     const properties: Record<string, unknown> = {};
-    const normalizedMap = normalizePropertyMapInput(map as unknown);
     const fallbackTitle = buildCompactTitle(payload.text);
+    const normalizedMap = normalizePropertyMapInput(map as unknown);
     applyMappedProperty(properties, normalizedMap.title, fallbackTitle || 'Image');
     applyMappedProperty(properties, normalizedMap.screenName, payload.screenName);
     applyMappedProperty(properties, normalizedMap.userName, payload.userName);
@@ -274,7 +274,6 @@ function applyMappedProperty(
                     start: isoDate
                 }
             };
-            return;
         }
     }
 }
@@ -519,11 +518,8 @@ export async function createNotionPage({
     avatarAsset: DownloadedAsset | null;
     mediaAssets: DownloadedAsset[];
 }) {
-    const usesDataSourceParent = shouldUseDataSourceParent(settings.notionVersion);
     const requestBody = {
-        parent: usesDataSourceParent
-            ? { data_source_id: databaseId }
-            : { database_id: databaseId },
+        parent: { data_source_id: databaseId },
         icon: buildIconFromAsset(avatarAsset, payload.avatarUrl),
         cover: buildCoverFromAsset(mediaAssets[0], payload.images?.[0]),
         properties,
@@ -564,9 +560,4 @@ export async function createNotionPage({
             throw new Error(`Notion ページの作成に失敗しました（HTTP ${response.status}）: ${detail}`);
         }
     }
-}
-
-function shouldUseDataSourceParent(notionVersion: string) {
-    const v = notionVersion?.trim() || '1970-01-01';
-    return /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= '2025-09-03';
 }

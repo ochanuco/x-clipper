@@ -4,25 +4,25 @@ const tweetHtml = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta property="og:title" content="Neoskin By Hiro Gato (@neoskin_hg)" />
-    <link rel="canonical" href="https://x.com/neoskin_hg/status/1900000000000000000" />
+    <meta property="og:title" content="Sample Creator (@sample_creator)" />
+    <link rel="canonical" href="https://x.com/sample_creator/status/1900000000000000000" />
   </head>
   <body>
     <article data-testid="tweet">
       <div data-testid="User-Names">
-        <a href="/neoskin_hg"><span>Neoskin By Hiro Gato</span></a>
-        <a href="/neoskin_hg"><span>@neoskin_hg</span></a>
+        <a href="/sample_creator"><span>Sample Creator</span></a>
+        <a href="/sample_creator"><span>@sample_creator</span></a>
       </div>
       <div data-testid="tweetText">
         <span>The alley feels untouched, even after everything ended.</span><br />
         <br />
-        <span>Neoskin Ver.1 “Wanderer in Space” by Hiro Gato.</span><br />
+        <span>Sample Suit Ver.1 “Wanderer in Space” by Example Author.</span><br />
         <br />
         <span>Handcrafted from satin spandex with neon detailing for a futuristic look.</span><br />
         <br />
         <span>Get it here: </span>
-        <a href="https://t.co/abc123" title="https://hirogato.com/neoskin">
-          <span aria-hidden="true">http://</span>hirogato.com/neoskin
+        <a href="https://t.co/abc123" title="https://example.com/neoskin">
+          <span aria-hidden="true">http://</span>example.com/neoskin
         </a><br />
         <br />
         <a href="/hashtag/cosplay"><span>#cosplay</span></a>
@@ -49,7 +49,7 @@ test.describe('本文抽出フォーマット', () => {
       });
     });
 
-    await page.goto('https://x.com/neoskin_hg/status/1900000000000000000');
+    await page.goto('https://x.com/sample_creator/status/1900000000000000000');
 
     const extracted = await extensionWorker.evaluate(async () => {
       const [tab] = await chrome.tabs.query({ url: 'https://x.com/*/status/*' });
@@ -63,8 +63,8 @@ test.describe('本文抽出フォーマット', () => {
 
     expect(extracted?.success).toBe(true);
     expect(extracted?.data?.text).toContain('The alley feels untouched, even after everything ended.');
-    expect(extracted?.data?.text).toContain('\n\nNeoskin Ver.1');
-    expect(extracted?.data?.text).toContain('\n\nGet it here: http://hirogato.com/neoskin');
+    expect(extracted?.data?.text).toContain('\n\nSample Suit Ver.1');
+    expect(extracted?.data?.text).toContain('\n\nGet it here: http://example.com/neoskin');
     expect(extracted?.data?.text).toContain('\n\n#cosplay #techwear');
   });
 });

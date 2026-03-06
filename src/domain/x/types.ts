@@ -1,5 +1,3 @@
-import type { NotionPropertyMap } from '../../types.js';
-
 export interface XPostPayload {
     screenName: string;
     userName: string;
@@ -8,5 +6,4 @@ export interface XPostPayload {
     images: string[];
     avatarUrl: string | null;
     url: string;
-    propertyMap?: NotionPropertyMap;
 }

@@ -232,6 +232,7 @@ function normalizeVisibleUrlText(value: string) {
     const hasEllipsis = /(?:\.{3}|…)+$/.test(value);
     const cleaned = value.replace(/(?:\.{3}|…)+$/g, '').replace(/[)\]}>,.!?;:、。！？]+$/gu, '');
     if (!cleaned) return null;
+    const hadScheme = /^https?:\/\//i.test(cleaned);
     const withScheme = /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
     try {
         const parsed = new URL(withScheme);
@@ -241,8 +242,9 @@ function normalizeVisibleUrlText(value: string) {
             const segments = parsed.pathname.split('/').filter(Boolean);
             const lastSegment = segments.at(-1) ?? '';
             const isLongNumericId = /^\d{8,}$/.test(lastSegment);
+            const isStableSlug = hadScheme && /^[A-Za-z0-9_-]{8,}$/.test(lastSegment);
             const hasQuery = parsed.searchParams.size > 0;
-            if (!isLongNumericId && !hasQuery) return null;
+            if (!isLongNumericId && !isStableSlug && !hasQuery) return null;
         }
         return withScheme;
     } catch {

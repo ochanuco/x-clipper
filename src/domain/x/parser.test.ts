@@ -244,7 +244,7 @@ describe('collectFromArticle', () => {
         <body>
           <article data-testid="tweet">
             <div data-testid="tweetText">
-              <a href="https://t.co/xvaYk5GMUp">https://gallery.example.net/posts/12345678…</a>
+              <a href="https://t.co/ghi789">https://gallery.example.net/posts/12345678…</a>
             </div>
           </article>
         </body>
@@ -270,7 +270,7 @@ describe('collectFromArticle', () => {
         <body>
           <article data-testid="tweet">
             <div data-testid="tweetText">
-              <a href="https://t.co/eM7xdOSMaF">https://video.example.org/watch?v=abcd1234&si=8X0v7_RAcrrJIzU1…</a>
+              <a href="https://t.co/jkl012">https://video.example.org/watch?v=abcd1234&si=8X0v7_RAcrrJIzU1…</a>
             </div>
           </article>
         </body>
@@ -284,6 +284,32 @@ describe('collectFromArticle', () => {
     const result = collectFromArticle(article);
 
     expect(result?.text).toBe('https://video.example.org/watch?v=abcd1234&si=8X0v7_RAcrrJIzU1');
+  });
+
+  it('末尾省略でも安定したslug付き可視URLを採用する', () => {
+    const linkDom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="canonical" href="https://x.com/testuser/status/123456789" />
+        </head>
+        <body>
+          <article data-testid="tweet">
+            <div data-testid="tweetText">
+              <a href="https://t.co/abc123">https://example.com/articles/slugvalue01…</a>
+            </div>
+          </article>
+        </body>
+      </html>
+    `);
+    document = linkDom.window.document;
+    globalThis.document = document;
+    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+
+    const article = document.querySelector('article[data-testid="tweet"]')!;
+    const result = collectFromArticle(article);
+
+    expect(result?.text).toBe('https://example.com/articles/slugvalue01');
   });
 
   it('@mention を URL に誤変換しない', () => {
@@ -372,7 +398,7 @@ line 2</span>
       path.resolve(__dirname, '../../../tests/fixtures/x/2025074037639234017/index.html'),
       'utf-8'
     );
-    const fixtureDom = new JSDOM(fixtureHtml, { url: 'https://x.com/ochanuco/status/2025074037639234017' });
+    const fixtureDom = new JSDOM(fixtureHtml, { url: 'https://x.com/sample_user/status/2025074037639234017' });
     document = fixtureDom.window.document;
     globalThis.document = document;
     globalThis.window = fixtureDom.window as unknown as Window & typeof globalThis;
@@ -383,7 +409,7 @@ line 2</span>
     expect(result).not.toBeNull();
     if (!result) return;
 
-    expect(result.userName).toBe('@ochanuco');
+    expect(result.userName).toBe('@sample_user');
     expect(result.text).toContain('$fric');
     expect(result.url).toContain('/status/2025074037639234017');
     expect(result.images.length).toBeGreaterThanOrEqual(1);

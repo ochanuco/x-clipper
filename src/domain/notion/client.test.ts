@@ -84,6 +84,16 @@ describe('buildProperties', () => {
     expect(() => buildProperties(mockPayload, customMap)).toThrow('URL 型に無効な値');
   });
 
+  it('投稿日時を ISO 形式に正規化する', () => {
+    const payload = {
+      ...mockPayload,
+      timestamp: '2025-11-24 12:00:00+09:00'
+    };
+
+    const result = buildProperties(payload, defaultMap) as Record<string, any>;
+    expect(result['Posted At'].date.start).toBe('2025-11-24T03:00:00.000Z');
+  });
+
   it('date型に不正値が入ると例外を投げる', () => {
     const payload = {
       ...mockPayload,

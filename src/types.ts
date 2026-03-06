@@ -22,7 +22,6 @@ export interface NotionPropertyMap {
 export interface AppSettings {
   notionApiKey: string;
   notionDatabaseId: string;
-  notionVersion: string;
   propertyMap: NotionPropertyMap;
 }
 
