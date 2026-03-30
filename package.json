@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
-    "@types/chrome": "^0.0.269",
+    "@types/chrome": "^0.1.0",
     "@types/jsdom": "^27.0.0",
     "@types/node": "^20.19.25",
     "esbuild": "^0.27.0",
