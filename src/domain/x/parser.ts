@@ -305,7 +305,7 @@ export function collectFromArticle(article: Element): XPostPayload | null {
                 return;
             }
             const prevLast = prev.slice(-1);
-            const nextFirst = part[0];
+            const nextFirst = part.charAt(0);
             const needsSpace =
                 !prev.endsWith('://') &&
                 prevLast !== '\n' &&
