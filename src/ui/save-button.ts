@@ -174,7 +174,8 @@ function findTweetActionArea(article: Element): Element | null {
     );
     if (explicitActionAreas.length > 0) {
         const sorted = explicitActionAreas.sort((a, b) => scoreActionArea(b) - scoreActionArea(a));
-        if (scoreActionArea(sorted[0]) > 0) return sorted[0];
+        const best = sorted[0];
+        if (best && scoreActionArea(best) > 0) return best;
     }
 
     const groups = Array.from(article.querySelectorAll('[role="group"]'));
@@ -182,7 +183,8 @@ function findTweetActionArea(article: Element): Element | null {
     const candidateGroups = sameArticleGroups.filter((group) => queryLikeControl(group));
     if (candidateGroups.length > 0) {
         const sorted = candidateGroups.sort((a, b) => scoreActionArea(b) - scoreActionArea(a));
-        if (scoreActionArea(sorted[0]) > 0) return sorted[0];
+        const best = sorted[0];
+        if (best && scoreActionArea(best) > 0) return best;
     }
 
     const ariaLabeledGroup = article.querySelector('div[aria-label]');

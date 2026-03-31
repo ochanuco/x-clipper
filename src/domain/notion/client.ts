@@ -18,6 +18,20 @@ const DEFAULT_FIELD_TYPES = {
     postedAt: 'date'
 } as const;
 
+type JsonObject = Record<string, unknown>;
+
+export type NotionRichTextItem = {
+    type: 'text';
+    text: {
+        content: string;
+        link?: { url: string } | null;
+    };
+};
+
+function isJsonObject(value: unknown): value is JsonObject {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export async function notionRequest(
     path: string,
     init: RequestInit,
@@ -169,14 +183,25 @@ export function buildProperties(payload: XPostPayload, map: AppSettings['propert
 }
 
 function normalizePropertyMapInput(input: unknown): Partial<AppSettings['propertyMap']> {
-    const raw = (input && typeof input === 'object') ? (input as Record<string, unknown>) : {};
-    return {
-        title: normalizeMapping(raw.title, DEFAULT_FIELD_TYPES.title),
-        screenName: normalizeMapping(raw.screenName, DEFAULT_FIELD_TYPES.screenName),
-        userName: normalizeMapping(raw.userName, DEFAULT_FIELD_TYPES.userName),
-        tweetUrl: normalizeMapping(raw.tweetUrl, DEFAULT_FIELD_TYPES.tweetUrl),
-        postedAt: normalizeMapping(raw.postedAt, DEFAULT_FIELD_TYPES.postedAt)
-    };
+    const raw = isJsonObject(input) ? input : {};
+    const normalized: Partial<AppSettings['propertyMap']> = {};
+
+    const title = normalizeMapping(raw.title, DEFAULT_FIELD_TYPES.title);
+    if (title) normalized.title = title;
+
+    const screenName = normalizeMapping(raw.screenName, DEFAULT_FIELD_TYPES.screenName);
+    if (screenName) normalized.screenName = screenName;
+
+    const userName = normalizeMapping(raw.userName, DEFAULT_FIELD_TYPES.userName);
+    if (userName) normalized.userName = userName;
+
+    const tweetUrl = normalizeMapping(raw.tweetUrl, DEFAULT_FIELD_TYPES.tweetUrl);
+    if (tweetUrl) normalized.tweetUrl = tweetUrl;
+
+    const postedAt = normalizeMapping(raw.postedAt, DEFAULT_FIELD_TYPES.postedAt);
+    if (postedAt) normalized.postedAt = postedAt;
+
+    return normalized;
 }
 
 function normalizeMapping(
@@ -196,7 +221,7 @@ function normalizeMapping(
         return undefined;
     }
 
-    const raw = value as Record<string, unknown>;
+    const raw = value as JsonObject;
     if (typeof raw.propertyName !== 'string') return undefined;
     const propertyName = raw.propertyName.trim();
     if (!propertyName) return undefined;
@@ -432,7 +457,7 @@ function buildTextParagraphBlocks(text: string) {
 }
 
 export function buildParagraphRichText(text: string) {
-    const richText: Array<{ type: 'text'; text: { content: string; link?: { url: string } | null } }> = [];
+    const richText: NotionRichTextItem[] = [];
     const urlPattern = /https?:\/\/[^\s]+|(?:www\.[^\s]+|(?<![@\w])[a-z0-9.-]+\.[a-z]{2,}[^\s]*)/gi;
     let cursor = 0;
     let match: RegExpExecArray | null;
@@ -545,14 +570,15 @@ export async function createNotionPage({
         console.error('Notion /pages response error', { status: response.status, body: detail });
 
         // Throw specific errors for the caller to handle (e.g. show notification)
-        let parsed: any = {};
+        let parsed: JsonObject = {};
         try {
-            parsed = detail ? JSON.parse(detail) : {};
+            const maybeParsed: unknown = detail ? JSON.parse(detail) : {};
+            parsed = isJsonObject(maybeParsed) ? maybeParsed : {};
         } catch {
             // If detail is not valid JSON (e.g., HTML error page), treat as empty object
             parsed = {};
         }
-        if (response.status === 404 || parsed?.code === 'object_not_found') {
+        if (response.status === 404 || parsed.code === 'object_not_found') {
             throw new Error('Notion の保存先が見つかりません。データベース/データソースを integration に共有しているか確認してください。');
         } else if (response.status === 401 || response.status === 403) {
             throw new Error('Notion API キーが無効か権限が不足しています。Options で API キーと DB 共有を確認してください。');
