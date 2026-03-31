@@ -33,13 +33,13 @@ jobs:
           echo "zip_name=${ZIP_NAME}" >> "$GITHUB_OUTPUT"
         id: archive
       - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ format('x-clipper-dist-{0}', github.sha) }}
           path: dist/
           retention-days: 30
       - name: Upload zip artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.archive.outputs.zip_name }}
           path: ${{ steps.archive.outputs.zip_name }}
