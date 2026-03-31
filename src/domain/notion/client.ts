@@ -29,7 +29,7 @@ export type NotionRichTextItem = {
 };
 
 function isJsonObject(value: unknown): value is JsonObject {
-    return typeof value === 'object' && value !== null;
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export async function notionRequest(

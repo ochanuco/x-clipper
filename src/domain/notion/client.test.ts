@@ -224,7 +224,7 @@ describe('buildProperties', () => {
       ...mockPayload,
       text: 'Check this https://example.com #news $BTC update'
     };
-    const result = buildProperties(payload, defaultMap) as Record<string, any>;
+    const result = asPropertiesResult(buildProperties(payload, defaultMap));
 
     expect(getTitleProperty(result, 'Name').title[0]?.text.content).toBe('Check this update');
   });
