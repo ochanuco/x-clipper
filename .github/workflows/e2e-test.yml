@@ -21,7 +21,7 @@ jobs:
     - name: Enable corepack
       run: corepack enable
     - name: Install pnpm
-      uses: pnpm/action-setup@v3
+      uses: pnpm/action-setup@v5
       with:
         version: 9
     - name: Install dependencies
