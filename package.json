@@ -15,7 +15,7 @@
     "test:e2e": "node scripts/run-e2e.mjs"
   },
   "dependencies": {
-    "@notionhq/client": "^2.3.0",
+    "@notionhq/client": "^5.0.0",
     "mime-types": "^2.1.35"
   },
   "devDependencies": {
