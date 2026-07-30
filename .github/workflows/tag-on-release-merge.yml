@@ -40,7 +40,7 @@ jobs:
           git tag "${TAG}"
           git push origin "${TAG}"
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v6
         with:
           version: 9
       - name: Install dependencies
