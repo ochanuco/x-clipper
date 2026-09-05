@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@notionhq/client':
         specifier: ^5.0.0
-        version: 5.19.0
+        version: 5.26.0
       mime-types:
         specifier: ^2.1.35
         version: 2.1.35
@@ -528,8 +528,8 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@notionhq/client@5.19.0':
-    resolution: {integrity: sha512-9R93Yt6/OB3MP5h29WhnvIBWYVq4mzxOYn9oh0Ut642NWxOTTouv7vkwKnMj5LGAYTlot0fhmL8OK5Su5zEzCw==}
+  '@notionhq/client@5.26.0':
+    resolution: {integrity: sha512-Oc3438nQ5YmZkVO7YJG8fcTYl0V46CirdCvO33azZ9f7ZfD2rsHE4fUVANJiBB9Xf1sqpCs82nd8oKPxeXLmMg==}
     engines: {node: '>=18'}
 
   '@playwright/test@1.56.1':
@@ -1361,7 +1361,7 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@notionhq/client@5.19.0': {}
+  '@notionhq/client@5.26.0': {}
 
   '@playwright/test@1.56.1':
     dependencies:
