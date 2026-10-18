@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@notionhq/client": "^5.0.0",
-    "mime-types": "^2.1.35"
+    "mime-types": "^3.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
