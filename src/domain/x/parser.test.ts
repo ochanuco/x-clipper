@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -34,6 +34,10 @@ describe('normalizeImageUrl', () => {
 
 describe('collectFromArticle', () => {
   let dom: JSDOM;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
   let document: Document;
 
   beforeEach(() => {
@@ -67,8 +71,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = dom.window.document;
-    globalThis.document = document;
-    globalThis.window = dom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', dom.window as unknown as Window & typeof globalThis);
   });
 
   it('記事要素から投稿データを抽出できる', () => {
@@ -113,8 +117,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -142,8 +146,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -171,8 +175,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -199,8 +203,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -225,8 +229,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -251,8 +255,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -277,8 +281,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -303,8 +307,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -330,8 +334,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -357,8 +361,8 @@ describe('collectFromArticle', () => {
       </html>
     `);
     document = linkDom.window.document;
-    globalThis.document = document;
-    globalThis.window = linkDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', linkDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -384,8 +388,8 @@ line 2</span>
       </html>
     `);
     document = lineBreakDom.window.document;
-    globalThis.document = document;
-    globalThis.window = lineBreakDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', lineBreakDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
@@ -400,8 +404,8 @@ line 2</span>
     );
     const fixtureDom = new JSDOM(fixtureHtml, { url: 'https://x.com/sample_user/status/2025074037639234017' });
     document = fixtureDom.window.document;
-    globalThis.document = document;
-    globalThis.window = fixtureDom.window as unknown as Window & typeof globalThis;
+    vi.stubGlobal('document', document);
+    vi.stubGlobal('window', fixtureDom.window as unknown as Window & typeof globalThis);
 
     const article = document.querySelector('article[data-testid="tweet"]')!;
     const result = collectFromArticle(article);
