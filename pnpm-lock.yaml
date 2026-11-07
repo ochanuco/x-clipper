@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@notionhq/client':
         specifier: ^5.0.0
-        version: 5.27.0
+        version: 5.30.0
       mime-types:
         specifier: ^3.0.0
         version: 3.0.2
@@ -528,9 +528,9 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@notionhq/client@5.27.0':
-    resolution: {integrity: sha512-JnkLtAzSDrEnvtZ8dQ5L4KO+xyL5g01xK5qmKTmhJ5KFY8LWsMyFG033vHCj0mFcsz9thAMjfcAQz/SWxiexag==}
-    engines: {node: '>=18'}
+  '@notionhq/client@5.30.0':
+    resolution: {integrity: sha512-SZpwkns/zScc7P7MA1LC144VT6AlKhy3NRAHa1rSxr/FVBGnmgMI2n81Y89X0UPgnKNSLyoEbzsod8KZsSGLSg==}
+    engines: {node: '>=22'}
 
   '@playwright/test@1.56.1':
     resolution: {integrity: sha512-vSMYtL/zOcFpvJCW71Q/OEGQb7KYBPAdKh35WNSkaZA75JlAO8ED8UN6GUNTm3drWomcbcqRPFqQbLae8yBTdg==}
@@ -1361,7 +1361,7 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@notionhq/client@5.27.0': {}
+  '@notionhq/client@5.30.0': {}
 
   '@playwright/test@1.56.1':
     dependencies:
