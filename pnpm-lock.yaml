@@ -168,7 +168,7 @@ importers:
     dependencies:
       '@notionhq/client':
         specifier: ^5.0.0
-        version: 5.30.0
+        version: 5.31.1
       mime-types:
         specifier: ^3.0.0
         version: 3.0.2
@@ -683,8 +683,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@notionhq/client@5.30.0':
-    resolution: {integrity: sha512-SZpwkns/zScc7P7MA1LC144VT6AlKhy3NRAHa1rSxr/FVBGnmgMI2n81Y89X0UPgnKNSLyoEbzsod8KZsSGLSg==}
+  '@notionhq/client@5.31.1':
+    resolution: {integrity: sha512-LuVlgHTkHPZf0LOILKVaDboYOyIXNHP9x2DSMhrJzUJjB7GzWjves1OA+8iqJxn1QPW6OqXdp0sS/z0Vh+JACA==}
     engines: {node: '>=22'}
 
   '@playwright/test@1.65.0':
@@ -1604,7 +1604,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@notionhq/client@5.30.0': {}
+  '@notionhq/client@5.31.1': {}
 
   '@playwright/test@1.65.0':
     dependencies:
